@@ -1,0 +1,1260 @@
+{
+  "rules": [
+    {
+      "pattern": "(\\d+)\\s+seconds?\\s+ago",
+      "replacement": "$1秒前"
+    },
+    {
+      "pattern": "(\\d+)\\s+minutes?\\s+ago",
+      "replacement": "$1分钟前"
+    },
+    {
+      "pattern": "(\\d+)\\s+hours?\\s+ago",
+      "replacement": "$1小时前"
+    },
+    {
+      "pattern": "(\\d+)\\s+days?\\s+ago",
+      "replacement": "$1天前"
+    },
+    {
+      "pattern": "(\\d+)\\s+weeks?\\s+ago",
+      "replacement": "$1周前"
+    },
+    {
+      "pattern": "(\\d+)\\s+months?\\s+ago",
+      "replacement": "$1个月前"
+    },
+    {
+      "pattern": "(\\d+)\\s+years?\\s+ago",
+      "replacement": "$1年前"
+    },
+    {
+      "pattern": "about\\s+(\\d+)\\s+(\\w+)\\s+ago",
+      "replacement": "约$1$2前"
+    },
+    {
+      "pattern": "over\\s+(\\d+)\\s+(\\w+)\\s+ago",
+      "replacement": "超过$1$2前"
+    },
+    {
+      "pattern": "almost\\s+(\\d+)\\s+(\\w+)\\s+ago",
+      "replacement": "近$1$2前"
+    },
+    {
+      "pattern": "less\\s+than\\s+(\\w+)\\s+ago",
+      "replacement": "不到$1前"
+    },
+    {
+      "pattern": "in\\s+(\\d+)\\s+(\\w+)",
+      "replacement": "$1$2后"
+    },
+    {
+      "pattern": "(\\d+)\\s+(\\w+)\\s+remaining",
+      "replacement": "剩余$1$2"
+    },
+    {
+      "pattern": "(\\d+)\\s+open",
+      "replacement": "$1个开放"
+    },
+    {
+      "pattern": "(\\d+)\\s+closed",
+      "replacement": "$1个已关闭"
+    },
+    {
+      "pattern": "(\\d+)\\s+merged",
+      "replacement": "$1个已合并"
+    },
+    {
+      "pattern": "(\\d+)\\s+comments?",
+      "replacement": "$1条评论"
+    },
+    {
+      "pattern": "(\\d+)\\s+commits?",
+      "replacement": "$1次提交"
+    },
+    {
+      "pattern": "(\\d+)\\s+branches?",
+      "replacement": "$1个分支"
+    },
+    {
+      "pattern": "(\\d+)\\s+tags?",
+      "replacement": "$1个标签"
+    },
+    {
+      "pattern": "(\\d+)\\s+releases?",
+      "replacement": "$1个版本"
+    },
+    {
+      "pattern": "(\\d+)\\s+contributors?",
+      "replacement": "$1位贡献者"
+    },
+    {
+      "pattern": "(\\d+)\\s+stars?",
+      "replacement": "$1个星标"
+    },
+    {
+      "pattern": "(\\d+)\\s+forks?",
+      "replacement": "$1次复刻"
+    },
+    {
+      "pattern": "(\\d+)\\s+watchers?",
+      "replacement": "$1位关注者"
+    },
+    {
+      "pattern": "(\\d+)\\s+issues?",
+      "replacement": "$1个议题"
+    },
+    {
+      "pattern": "(\\d+)\\s+pull\\s+requests?",
+      "replacement": "$1个合并请求"
+    },
+    {
+      "pattern": "(\\d+)\\s+files?\\s+changed",
+      "replacement": "$1个文件变更"
+    },
+    {
+      "pattern": "(\\d+)\\s+additions?",
+      "replacement": "$1行新增"
+    },
+    {
+      "pattern": "(\\d+)\\s+deletions?",
+      "replacement": "$1行删除"
+    },
+    {
+      "pattern": "(\\d+)\\s+lines?",
+      "replacement": "$1行"
+    },
+    {
+      "pattern": "(\\d+)\\s+bytes?",
+      "replacement": "$1字节"
+    },
+    {
+      "pattern": "(\\d+(?:\\.\\d+)?)\\s+kb",
+      "replacement": "$1 KB"
+    },
+    {
+      "pattern": "(\\d+(?:\\.\\d+)?)\\s+mb",
+      "replacement": "$1 MB"
+    },
+    {
+      "pattern": "(\\d+(?:\\.\\d+)?)\\s+gb",
+      "replacement": "$1 GB"
+    },
+    {
+      "pattern": "(\\d+(?:\\.\\d+)?)\\s+tb",
+      "replacement": "$1 TB"
+    },
+    {
+      "pattern": "page\\s+(\\d+)\\s+of\\s+(\\d+)",
+      "replacement": "第$1页，共$2页"
+    },
+    {
+      "pattern": "showing\\s+(\\d+)\\s+[-–]\\s+(\\d+)\\s+of\\s+(\\d+)",
+      "replacement": "显示$1-$2，共$3条"
+    },
+    {
+      "pattern": "(\\d+)\\s+results?",
+      "replacement": "$1个结果"
+    },
+    {
+      "pattern": "(\\d+)\\s+items?",
+      "replacement": "$1项"
+    },
+    {
+      "pattern": "(\\d+)\\s+entries?",
+      "replacement": "$1条记录"
+    },
+    {
+      "pattern": "(\\d+)\\s+records?",
+      "replacement": "$1条记录"
+    },
+    {
+      "pattern": "(\\d+)\\s+rows?",
+      "replacement": "$1行"
+    },
+    {
+      "pattern": "(\\d+)\\s+columns?",
+      "replacement": "$1列"
+    },
+    {
+      "pattern": "updated\\s+(.*)",
+      "replacement": "更新于$1"
+    },
+    {
+      "pattern": "created\\s+(.*)",
+      "replacement": "创建于$1"
+    },
+    {
+      "pattern": "published\\s+(.*)",
+      "replacement": "发布于$1"
+    },
+    {
+      "pattern": "released\\s+(.*)",
+      "replacement": "发布于$1"
+    },
+    {
+      "pattern": "last\\s+commit\\s+(.*)",
+      "replacement": "最后提交$1"
+    },
+    {
+      "pattern": "last\\s+updated\\s+(.*)",
+      "replacement": "最后更新$1"
+    },
+    {
+      "pattern": "last\\s+push\\s+(.*)",
+      "replacement": "最后推送$1"
+    },
+    {
+      "pattern": "last\\s+synced\\s+(.*)",
+      "replacement": "最后同步$1"
+    },
+    {
+      "pattern": "last\\s+seen\\s+(.*)",
+      "replacement": "最后活跃$1"
+    },
+    {
+      "pattern": "last\\s+active\\s+(.*)",
+      "replacement": "最后活跃$1"
+    },
+    {
+      "pattern": "last\\s+login\\s+(.*)",
+      "replacement": "最后登录$1"
+    },
+    {
+      "pattern": "joined\\s+on\\s+(.*)",
+      "replacement": "加入于$1"
+    },
+    {
+      "pattern": "since\\s+(.*)",
+      "replacement": "自$1起"
+    },
+    {
+      "pattern": "until\\s+(.*)",
+      "replacement": "直到$1"
+    },
+    {
+      "pattern": "from\\s+(.*)\\s+to\\s+(.*)",
+      "replacement": "从$1到$2"
+    },
+    {
+      "pattern": "between\\s+(.*)\\s+and\\s+(.*)",
+      "replacement": "$1至$2之间"
+    },
+    {
+      "pattern": "(\\d+)\\s+%\\s+complete",
+      "replacement": "已完成$1%"
+    },
+    {
+      "pattern": "(\\d+)\\s+%\\s+done",
+      "replacement": "已完成$1%"
+    },
+    {
+      "pattern": "(\\d+)\\s+%\\s+loaded",
+      "replacement": "已加载$1%"
+    },
+    {
+      "pattern": "(\\d+)\\s+%\\s+uploaded",
+      "replacement": "已上传$1%"
+    },
+    {
+      "pattern": "(\\d+)\\s+%\\s+downloaded",
+      "replacement": "已下载$1%"
+    },
+    {
+      "pattern": "(\\d+)\\s+%\\s+processed",
+      "replacement": "已处理$1%"
+    },
+    {
+      "pattern": "(\\d+)\\s+%\\s+analyzed",
+      "replacement": "已分析$1%"
+    },
+    {
+      "pattern": "(\\d+)\\s+%\\s+scanned",
+      "replacement": "已扫描$1%"
+    },
+    {
+      "pattern": "(\\d+)\\s+%\\s+tested",
+      "replacement": "已测试$1%"
+    },
+    {
+      "pattern": "(\\d+)\\s+%\\s+covered",
+      "replacement": "覆盖率$1%"
+    },
+    {
+      "pattern": "(\\d+)\\s+passing",
+      "replacement": "$1个通过"
+    },
+    {
+      "pattern": "(\\d+)\\s+failing",
+      "replacement": "$1个失败"
+    },
+    {
+      "pattern": "(\\d+)\\s+skipped",
+      "replacement": "$1个跳过"
+    },
+    {
+      "pattern": "(\\d+)\\s+errors?",
+      "replacement": "$1个错误"
+    },
+    {
+      "pattern": "(\\d+)\\s+warnings?",
+      "replacement": "$1个警告"
+    },
+    {
+      "pattern": "(\\d+)\\s+failures?",
+      "replacement": "$1个失败"
+    },
+    {
+      "pattern": "(\\d+)\\s+success(?:es)?",
+      "replacement": "$1个成功"
+    },
+    {
+      "pattern": "all\\s+(\\d+)\\s+tests?\\s+passed",
+      "replacement": "全部$1个测试通过"
+    },
+    {
+      "pattern": "(\\d+)\\s+of\\s+(\\d+)\\s+tests?\\s+passed",
+      "replacement": "$2个测试中$1个通过"
+    },
+    {
+      "pattern": "build\\s+#(\\d+)",
+      "replacement": "构建#$1"
+    },
+    {
+      "pattern": "run\\s+#(\\d+)",
+      "replacement": "运行#$1"
+    },
+    {
+      "pattern": "job\\s+#(\\d+)",
+      "replacement": "任务#$1"
+    },
+    {
+      "pattern": "workflow\\s+run\\s+#(\\d+)",
+      "replacement": "工作流运行#$1"
+    },
+    {
+      "pattern": "issue\\s+#(\\d+)",
+      "replacement": "议题#$1"
+    },
+    {
+      "pattern": "pull\\s+request\\s+#(\\d+)",
+      "replacement": "合并请求#$1"
+    },
+    {
+      "pattern": "pr\\s+#(\\d+)",
+      "replacement": "PR#$1"
+    },
+    {
+      "pattern": "commit\\s+([0-9a-f]{7,40})",
+      "replacement": "提交$1"
+    },
+    {
+      "pattern": "branch\\s+([\\w\\-./]+)",
+      "replacement": "分支$1"
+    },
+    {
+      "pattern": "tag\\s+v?(\\d+\\.\\d+\\.\\d+)",
+      "replacement": "标签v$1"
+    },
+    {
+      "pattern": "release\\s+v?(\\d+\\.\\d+\\.\\d+)",
+      "replacement": "版本v$1"
+    },
+    {
+      "pattern": "version\\s+v?(\\d+\\.\\d+\\.\\d+)",
+      "replacement": "版本v$1"
+    },
+    {
+      "pattern": "v(\\d+)\\.(\\d+)\\.(\\d+)",
+      "replacement": "v$1.$2.$3"
+    },
+    {
+      "pattern": "(\\d+)\\s+new",
+      "replacement": "$1个新增"
+    },
+    {
+      "pattern": "(\\d+)\\s+updated",
+      "replacement": "$1个更新"
+    },
+    {
+      "pattern": "(\\d+)\\s+removed",
+      "replacement": "$1个移除"
+    },
+    {
+      "pattern": "(\\d+)\\s+added",
+      "replacement": "$1个添加"
+    },
+    {
+      "pattern": "(\\d+)\\s+deleted",
+      "replacement": "$1个删除"
+    },
+    {
+      "pattern": "(\\d+)\\s+modified",
+      "replacement": "$1个修改"
+    },
+    {
+      "pattern": "(\\d+)\\s+renamed",
+      "replacement": "$1个重命名"
+    },
+    {
+      "pattern": "(\\d+)\\s+moved",
+      "replacement": "$1个移动"
+    },
+    {
+      "pattern": "(\\d+)\\s+copied",
+      "replacement": "$1个复制"
+    },
+    {
+      "pattern": "(\\d+)\\s+unchanged",
+      "replacement": "$1个未变"
+    },
+    {
+      "pattern": "(\\d+)\\s+conflicts?",
+      "replacement": "$1个冲突"
+    },
+    {
+      "pattern": "(\\d+)\\s+warnings?",
+      "replacement": "$1个警告"
+    },
+    {
+      "pattern": "(\\d+)\\s+notifications?",
+      "replacement": "$1条通知"
+    },
+    {
+      "pattern": "(\\d+)\\s+unread",
+      "replacement": "$1条未读"
+    },
+    {
+      "pattern": "(\\d+)\\s+mentions?",
+      "replacement": "$1次提及"
+    },
+    {
+      "pattern": "(\\d+)\\s+assignments?",
+      "replacement": "$1个分配"
+    },
+    {
+      "pattern": "(\\d+)\\s+review\\s+requests?",
+      "replacement": "$1个审查请求"
+    },
+    {
+      "pattern": "(\\d+)\\s+reviews?",
+      "replacement": "$1次审查"
+    },
+    {
+      "pattern": "(\\d+)\\s+approvals?",
+      "replacement": "$1个批准"
+    },
+    {
+      "pattern": "(\\d+)\\s+rejections?",
+      "replacement": "$1个拒绝"
+    },
+    {
+      "pattern": "(\\d+)\\s+dismissals?",
+      "replacement": "$1个驳回"
+    },
+    {
+      "pattern": "(\\d+)\\s+comments?",
+      "replacement": "$1条评论"
+    },
+    {
+      "pattern": "(\\d+)\\s+replies?",
+      "replacement": "$1条回复"
+    },
+    {
+      "pattern": "(\\d+)\\s+reactions?",
+      "replacement": "$1个反应"
+    },
+    {
+      "pattern": "(\\d+)\\s+emojis?",
+      "replacement": "$1个表情"
+    },
+    {
+      "pattern": "(\\d+)\\s+thumbs\\s+up",
+      "replacement": "$1个赞"
+    },
+    {
+      "pattern": "(\\d+)\\s+thumbs\\s+down",
+      "replacement": "$1个踩"
+    },
+    {
+      "pattern": "(\\d+)\\s+hearts?",
+      "replacement": "$1个爱心"
+    },
+    {
+      "pattern": "(\\d+)\\s+rockets?",
+      "replacement": "$1个火箭"
+    },
+    {
+      "pattern": "(\\d+)\\s+eyes?",
+      "replacement": "$1次观看"
+    },
+    {
+      "pattern": "(\\d+)\\s+confused",
+      "replacement": "$1个困惑"
+    },
+    {
+      "pattern": "(\\d+)\\s+laugh(?:s|ter)?",
+      "replacement": "$1个大笑"
+    },
+    {
+      "pattern": "(\\d+)\\s+hoorays?",
+      "replacement": "$1个庆祝"
+    },
+    {
+      "pattern": "(\\d+)\\s+party",
+      "replacement": "$1个派对"
+    },
+    {
+      "pattern": "(\\d+)\\s+users?",
+      "replacement": "$1位用户"
+    },
+    {
+      "pattern": "(\\d+)\\s+members?",
+      "replacement": "$1位成员"
+    },
+    {
+      "pattern": "(\\d+)\\s+admins?",
+      "replacement": "$1位管理员"
+    },
+    {
+      "pattern": "(\\d+)\\s+owners?",
+      "replacement": "$1位所有者"
+    },
+    {
+      "pattern": "(\\d+)\\s+maintainers?",
+      "replacement": "$1位维护者"
+    },
+    {
+      "pattern": "(\\d+)\\s+collaborators?",
+      "replacement": "$1位协作者"
+    },
+    {
+      "pattern": "(\\d+)\\s+outside\\s+collaborators?",
+      "replacement": "$1位外部协作者"
+    },
+    {
+      "pattern": "(\\d+)\\s+teams?",
+      "replacement": "$1个团队"
+    },
+    {
+      "pattern": "(\\d+)\\s+organizations?",
+      "replacement": "$1个组织"
+    },
+    {
+      "pattern": "(\\d+)\\s+repositories?",
+      "replacement": "$1个仓库"
+    },
+    {
+      "pattern": "(\\d+)\\s+projects?",
+      "replacement": "$1个项目"
+    },
+    {
+      "pattern": "(\\d+)\\s+packages?",
+      "replacement": "$1个包"
+    },
+    {
+      "pattern": "(\\d+)\\s+wikis?",
+      "replacement": "$1个维基"
+    },
+    {
+      "pattern": "(\\d+)\\s+discussions?",
+      "replacement": "$1个讨论"
+    },
+    {
+      "pattern": "(\\d+)\\s+milestones?",
+      "replacement": "$1个里程碑"
+    },
+    {
+      "pattern": "(\\d+)\\s+labels?",
+      "replacement": "$1个标签"
+    },
+    {
+      "pattern": "(\\d+)\\s+environments?",
+      "replacement": "$1个环境"
+    },
+    {
+      "pattern": "(\\d+)\\s+secrets?",
+      "replacement": "$1个密钥"
+    },
+    {
+      "pattern": "(\\d+)\\s+variables?",
+      "replacement": "$1个变量"
+    },
+    {
+      "pattern": "(\\d+)\\s+webhooks?",
+      "replacement": "$1个Webhook"
+    },
+    {
+      "pattern": "(\\d+)\\s+deploy\\s+keys?",
+      "replacement": "$1个部署密钥"
+    },
+    {
+      "pattern": "(\\d+)\\s+ssh\\s+keys?",
+      "replacement": "$1个SSH密钥"
+    },
+    {
+      "pattern": "(\\d+)\\s+gpg\\s+keys?",
+      "replacement": "$1个GPG密钥"
+    },
+    {
+      "pattern": "(\\d+)\\s+personal\\s+access\\s+tokens?",
+      "replacement": "$1个个人访问令牌"
+    },
+    {
+      "pattern": "(\\d+)\\s+oauth\\s+apps?",
+      "replacement": "$1个OAuth应用"
+    },
+    {
+      "pattern": "(\\d+)\\s+github\\s+apps?",
+      "replacement": "$1个GitHub应用"
+    },
+    {
+      "pattern": "(\\d+)\\s+installations?",
+      "replacement": "$1个安装"
+    },
+    {
+      "pattern": "(\\d+)\\s+integrations?",
+      "replacement": "$1个集成"
+    },
+    {
+      "pattern": "(\\d+)\\s+extensions?",
+      "replacement": "$1个扩展"
+    },
+    {
+      "pattern": "(\\d+)\\s+plugins?",
+      "replacement": "$1个插件"
+    },
+    {
+      "pattern": "(\\d+)\\s+modules?",
+      "replacement": "$1个模块"
+    },
+    {
+      "pattern": "(\\d+)\\s+components?",
+      "replacement": "$1个组件"
+    },
+    {
+      "pattern": "(\\d+)\\s+templates?",
+      "replacement": "$1个模板"
+    },
+    {
+      "pattern": "(\\d+)\\s+examples?",
+      "replacement": "$1个示例"
+    },
+    {
+      "pattern": "(\\d+)\\s+tutorials?",
+      "replacement": "$1个教程"
+    },
+    {
+      "pattern": "(\\d+)\\s+guides?",
+      "replacement": "$1个指南"
+    },
+    {
+      "pattern": "(\\d+)\\s+docs?",
+      "replacement": "$1篇文档"
+    },
+    {
+      "pattern": "(\\d+)\\s+articles?",
+      "replacement": "$1篇文章"
+    },
+    {
+      "pattern": "(\\d+)\\s+posts?",
+      "replacement": "$1篇帖子"
+    },
+    {
+      "pattern": "(\\d+)\\s+pages?",
+      "replacement": "$1个页面"
+    },
+    {
+      "pattern": "(\\d+)\\s+sections?",
+      "replacement": "$1个章节"
+    },
+    {
+      "pattern": "(\\d+)\\s+chapters?",
+      "replacement": "$1个章节"
+    },
+    {
+      "pattern": "(\\d+)\\s+lessons?",
+      "replacement": "$1节课"
+    },
+    {
+      "pattern": "(\\d+)\\s+quizzes?",
+      "replacement": "$1个测验"
+    },
+    {
+      "pattern": "(\\d+)\\s+exams?",
+      "replacement": "$1场考试"
+    },
+    {
+      "pattern": "(\\d+)\\s+assignments?",
+      "replacement": "$1个作业"
+    },
+    {
+      "pattern": "(\\d+)\\s+submissions?",
+      "replacement": "$1份提交"
+    },
+    {
+      "pattern": "(\\d+)\\s+grades?",
+      "replacement": "$1个成绩"
+    },
+    {
+      "pattern": "(\\d+)\\s+scores?",
+      "replacement": "$1个分数"
+    },
+    {
+      "pattern": "(\\d+)\\s+points?",
+      "replacement": "$1分"
+    },
+    {
+      "pattern": "(\\d+)\\s+badges?",
+      "replacement": "$1个徽章"
+    },
+    {
+      "pattern": "(\\d+)\\s+achievements?",
+      "replacement": "$1个成就"
+    },
+    {
+      "pattern": "(\\d+)\\s+certificates?",
+      "replacement": "$1个证书"
+    },
+    {
+      "pattern": "(\\d+)\\s+awards?",
+      "replacement": "$1个奖项"
+    },
+    {
+      "pattern": "(\\d+)\\s+prizes?",
+      "replacement": "$1个奖品"
+    },
+    {
+      "pattern": "(\\d+)\\s+rewards?",
+      "replacement": "$1个奖励"
+    },
+    {
+      "pattern": "(\\d+)\\s+bonuses?",
+      "replacement": "$1个奖金"
+    },
+    {
+      "pattern": "(\\d+)\\s+gifts?",
+      "replacement": "$1份礼物"
+    },
+    {
+      "pattern": "(\\d+)\\s+coupons?",
+      "replacement": "$1张优惠券"
+    },
+    {
+      "pattern": "(\\d+)\\s+vouchers?",
+      "replacement": "$1张代金券"
+    },
+    {
+      "pattern": "(\\d+)\\s+discounts?",
+      "replacement": "$1个折扣"
+    },
+    {
+      "pattern": "(\\d+)\\s+promotions?",
+      "replacement": "$1个促销"
+    },
+    {
+      "pattern": "(\\d+)\\s+campaigns?",
+      "replacement": "$1个活动"
+    },
+    {
+      "pattern": "(\\d+)\\s+offers?",
+      "replacement": "$1个优惠"
+    },
+    {
+      "pattern": "(\\d+)\\s+deals?",
+      "replacement": "$1笔交易"
+    },
+    {
+      "pattern": "(\\d+)\\s+orders?",
+      "replacement": "$1个订单"
+    },
+    {
+      "pattern": "(\\d+)\\s+purchases?",
+      "replacement": "$1次购买"
+    },
+    {
+      "pattern": "(\\d+)\\s+transactions?",
+      "replacement": "$1笔交易"
+    },
+    {
+      "pattern": "(\\d+)\\s+payments?",
+      "replacement": "$1笔付款"
+    },
+    {
+      "pattern": "(\\d+)\\s+refunds?",
+      "replacement": "$1笔退款"
+    },
+    {
+      "pattern": "(\\d+)\\s+invoices?",
+      "replacement": "$1张发票"
+    },
+    {
+      "pattern": "(\\d+)\\s+receipts?",
+      "replacement": "$1张收据"
+    },
+    {
+      "pattern": "(\\d+)\\s+bills?",
+      "replacement": "$1张账单"
+    },
+    {
+      "pattern": "(\\d+)\\s+statements?",
+      "replacement": "$1份对账单"
+    },
+    {
+      "pattern": "(\\d+)\\s+reports?",
+      "replacement": "$1份报告"
+    },
+    {
+      "pattern": "(\\d+)\\s+analytics?",
+      "replacement": "$1项分析"
+    },
+    {
+      "pattern": "(\\d+)\\s+metrics?",
+      "replacement": "$1个指标"
+    },
+    {
+      "pattern": "(\\d+)\\s+statistics?",
+      "replacement": "$1项统计"
+    },
+    {
+      "pattern": "(\\d+)\\s+charts?",
+      "replacement": "$1个图表"
+    },
+    {
+      "pattern": "(\\d+)\\s+graphs?",
+      "replacement": "$1个图形"
+    },
+    {
+      "pattern": "(\\d+)\\s+tables?",
+      "replacement": "$1个表格"
+    },
+    {
+      "pattern": "(\\d+)\\s+figures?",
+      "replacement": "$1个图"
+    },
+    {
+      "pattern": "(\\d+)\\s+diagrams?",
+      "replacement": "$1个图表"
+    },
+    {
+      "pattern": "(\\d+)\\s+illustrations?",
+      "replacement": "$1个插图"
+    },
+    {
+      "pattern": "(\\d+)\\s+screenshots?",
+      "replacement": "$1张截图"
+    },
+    {
+      "pattern": "(\\d+)\\s+images?",
+      "replacement": "$1张图片"
+    },
+    {
+      "pattern": "(\\d+)\\s+photos?",
+      "replacement": "$1张照片"
+    },
+    {
+      "pattern": "(\\d+)\\s+pictures?",
+      "replacement": "$1张图片"
+    },
+    {
+      "pattern": "(\\d+)\\s+icons?",
+      "replacement": "$1个图标"
+    },
+    {
+      "pattern": "(\\d+)\\s+logos?",
+      "replacement": "$1个Logo"
+    },
+    {
+      "pattern": "(\\d+)\\s+banners?",
+      "replacement": "$1个横幅"
+    },
+    {
+      "pattern": "(\\d+)\\s+headers?",
+      "replacement": "$1个页眉"
+    },
+    {
+      "pattern": "(\\d+)\\s+footers?",
+      "replacement": "$1个页脚"
+    },
+    {
+      "pattern": "(\\d+)\\s+sidebars?",
+      "replacement": "$1个侧边栏"
+    },
+    {
+      "pattern": "(\\d+)\\s+navbars?",
+      "replacement": "$1个导航栏"
+    },
+    {
+      "pattern": "(\\d+)\\s+menus?",
+      "replacement": "$1个菜单"
+    },
+    {
+      "pattern": "(\\d+)\\s+buttons?",
+      "replacement": "$1个按钮"
+    },
+    {
+      "pattern": "(\\d+)\\s+links?",
+      "replacement": "$1个链接"
+    },
+    {
+      "pattern": "(\\d+)\\s+inputs?",
+      "replacement": "$1个输入框"
+    },
+    {
+      "pattern": "(\\d+)\\s+fields?",
+      "replacement": "$1个字段"
+    },
+    {
+      "pattern": "(\\d+)\\s+forms?",
+      "replacement": "$1个表单"
+    },
+    {
+      "pattern": "(\\d+)\\s+modals?",
+      "replacement": "$1个弹窗"
+    },
+    {
+      "pattern": "(\\d+)\\s+dialogs?",
+      "replacement": "$1个对话框"
+    },
+    {
+      "pattern": "(\\d+)\\s+popups?",
+      "replacement": "$1个弹出窗口"
+    },
+    {
+      "pattern": "(\\d+)\\s+tooltips?",
+      "replacement": "$1个工具提示"
+    },
+    {
+      "pattern": "(\\d+)\\s+toasts?",
+      "replacement": "$1个轻提示"
+    },
+    {
+      "pattern": "(\\d+)\\s+alerts?",
+      "replacement": "$1个警告"
+    },
+    {
+      "pattern": "(\\d+)\\s+notifications?",
+      "replacement": "$1条通知"
+    },
+    {
+      "pattern": "(\\d+)\\s+badges?",
+      "replacement": "$1个徽章"
+    },
+    {
+      "pattern": "(\\d+)\\s+tags?",
+      "replacement": "$1个标签"
+    },
+    {
+      "pattern": "(\\d+)\\s+labels?",
+      "replacement": "$1个标签"
+    },
+    {
+      "pattern": "(\\d+)\\s+categories?",
+      "replacement": "$1个分类"
+    },
+    {
+      "pattern": "(\\d+)\\s+folders?",
+      "replacement": "$1个文件夹"
+    },
+    {
+      "pattern": "(\\d+)\\s+directories?",
+      "replacement": "$1个目录"
+    },
+    {
+      "pattern": "(\\d+)\\s+files?",
+      "replacement": "$1个文件"
+    },
+    {
+      "pattern": "(\\d+)\\s+documents?",
+      "replacement": "$1份文档"
+    },
+    {
+      "pattern": "(\\d+)\\s+spreadsheets?",
+      "replacement": "$1个电子表格"
+    },
+    {
+      "pattern": "(\\d+)\\s+presentations?",
+      "replacement": "$1个演示文稿"
+    },
+    {
+      "pattern": "(\\d+)\\s+pdfs?",
+      "replacement": "$1个PDF"
+    },
+    {
+      "pattern": "(\\d+)\\s+videos?",
+      "replacement": "$1个视频"
+    },
+    {
+      "pattern": "(\\d+)\\s+audios?",
+      "replacement": "$1个音频"
+    },
+    {
+      "pattern": "(\\d+)\\s+music?",
+      "replacement": "$1首音乐"
+    },
+    {
+      "pattern": "(\\d+)\\s+songs?",
+      "replacement": "$1首歌曲"
+    },
+    {
+      "pattern": "(\\d+)\\s+podcasts?",
+      "replacement": "$1个播客"
+    },
+    {
+      "pattern": "(\\d+)\\s+episodes?",
+      "replacement": "$1集"
+    },
+    {
+      "pattern": "(\\d+)\\s+seasons?",
+      "replacement": "$1季"
+    },
+    {
+      "pattern": "(\\d+)\\s+movies?",
+      "replacement": "$1部电影"
+    },
+    {
+      "pattern": "(\\d+)\\s+shows?",
+      "replacement": "$1个节目"
+    },
+    {
+      "pattern": "(\\d+)\\s+series?",
+      "replacement": "$1部剧集"
+    },
+    {
+      "pattern": "(\\d+)\\s+games?",
+      "replacement": "$1个游戏"
+    },
+    {
+      "pattern": "(\\d+)\\s+apps?",
+      "replacement": "$1个应用"
+    },
+    {
+      "pattern": "(\\d+)\\s+websites?",
+      "replacement": "$1个网站"
+    },
+    {
+      "pattern": "(\\d+)\\s+domains?",
+      "replacement": "$1个域名"
+    },
+    {
+      "pattern": "(\\d+)\\s+servers?",
+      "replacement": "$1台服务器"
+    },
+    {
+      "pattern": "(\\d+)\\s+databases?",
+      "replacement": "$1个数据库"
+    },
+    {
+      "pattern": "(\\d+)\\s+caches?",
+      "replacement": "$1个缓存"
+    },
+    {
+      "pattern": "(\\d+)\\s+queues?",
+      "replacement": "$1个队列"
+    },
+    {
+      "pattern": "(\\d+)\\s+topics?",
+      "replacement": "$1个主题"
+    },
+    {
+      "pattern": "(\\d+)\\s+threads?",
+      "replacement": "$1个帖子"
+    },
+    {
+      "pattern": "(\\d+)\\s+conversations?",
+      "replacement": "$1个对话"
+    },
+    {
+      "pattern": "(\\d+)\\s+chats?",
+      "replacement": "$1个聊天"
+    },
+    {
+      "pattern": "(\\d+)\\s+messages?",
+      "replacement": "$1条消息"
+    },
+    {
+      "pattern": "(\\d+)\\s+emails?",
+      "replacement": "$1封邮件"
+    },
+    {
+      "pattern": "(\\d+)\\s+invitations?",
+      "replacement": "$1个邀请"
+    },
+    {
+      "pattern": "(\\d+)\\s+requests?",
+      "replacement": "$1个请求"
+    },
+    {
+      "pattern": "(\\d+)\\s+invitations?",
+      "replacement": "$1个邀请"
+    },
+    {
+      "pattern": "(\\d+)\\s+applications?",
+      "replacement": "$1个申请"
+    },
+    {
+      "pattern": "(\\d+)\\s+submissions?",
+      "replacement": "$1份提交"
+    },
+    {
+      "pattern": "(\\d+)\\s+proposals?",
+      "replacement": "$1个提案"
+    },
+    {
+      "pattern": "(\\d+)\\s+suggestions?",
+      "replacement": "$1个建议"
+    },
+    {
+      "pattern": "(\\d+)\\s+feedback?",
+      "replacement": "$1条反馈"
+    },
+    {
+      "pattern": "(\\d+)\\s+reviews?",
+      "replacement": "$1条评价"
+    },
+    {
+      "pattern": "(\\d+)\\s+ratings?",
+      "replacement": "$1个评分"
+    },
+    {
+      "pattern": "(\\d+)\\s+stars?",
+      "replacement": "$1颗星"
+    },
+    {
+      "pattern": "(\\d+)\\s+out\\s+of\\s+(\\d+)",
+      "replacement": "$1/$2"
+    },
+    {
+      "pattern": "(\\d+)\\s+/(\\d+)",
+      "replacement": "$1/$2"
+    },
+    {
+      "pattern": "(\\d+)\\s+of\\s+(\\d+)",
+      "replacement": "$1/$2"
+    },
+    {
+      "pattern": "step\\s+(\\d+)\\s+of\\s+(\\d+)",
+      "replacement": "第$1步，共$2步"
+    },
+    {
+      "pattern": "part\\s+(\\d+)\\s+of\\s+(\\d+)",
+      "replacement": "第$1部分，共$2部分"
+    },
+    {
+      "pattern": "chapter\\s+(\\d+)",
+      "replacement": "第$1章"
+    },
+    {
+      "pattern": "section\\s+(\\d+)",
+      "replacement": "第$1节"
+    },
+    {
+      "pattern": "lesson\\s+(\\d+)",
+      "replacement": "第$1课"
+    },
+    {
+      "pattern": "page\\s+(\\d+)",
+      "replacement": "第$1页"
+    },
+    {
+      "pattern": "item\\s+(\\d+)",
+      "replacement": "第$1项"
+    },
+    {
+      "pattern": "row\\s+(\\d+)",
+      "replacement": "第$1行"
+    },
+    {
+      "pattern": "column\\s+(\\d+)",
+      "replacement": "第$1列"
+    },
+    {
+      "pattern": "line\\s+(\\d+)",
+      "replacement": "第$1行"
+    },
+    {
+      "pattern": "character\\s+(\\d+)",
+      "replacement": "第$1个字符"
+    },
+    {
+      "pattern": "byte\\s+(\\d+)",
+      "replacement": "第$1字节"
+    },
+    {
+      "pattern": "bit\\s+(\\d+)",
+      "replacement": "第$1位"
+    },
+    {
+      "pattern": "pixel\\s+(\\d+)",
+      "replacement": "第$1像素"
+    },
+    {
+      "pattern": "frame\\s+(\\d+)",
+      "replacement": "第$1帧"
+    },
+    {
+      "pattern": "layer\\s+(\\d+)",
+      "replacement": "第$1层"
+    },
+    {
+      "pattern": "level\\s+(\\d+)",
+      "replacement": "第$1级"
+    },
+    {
+      "pattern": "stage\\s+(\\d+)",
+      "replacement": "第$1阶段"
+    },
+    {
+      "pattern": "phase\\s+(\\d+)",
+      "replacement": "第$1阶段"
+    },
+    {
+      "pattern": "round\\s+(\\d+)",
+      "replacement": "第$1轮"
+    },
+    {
+      "pattern": "match\\s+(\\d+)",
+      "replacement": "第$1场"
+    },
+    {
+      "pattern": "game\\s+(\\d+)",
+      "replacement": "第$1局"
+    },
+    {
+      "pattern": "set\\s+(\\d+)",
+      "replacement": "第$1盘"
+    },
+    {
+      "pattern": "quarter\\s+(\\d+)",
+      "replacement": "第$1节"
+    },
+    {
+      "pattern": "half\\s+(\\d+)",
+      "replacement": "第$1半场"
+    },
+    {
+      "pattern": "period\\s+(\\d+)",
+      "replacement": "第$1节"
+    },
+    {
+      "pattern": "inning\\s+(\\d+)",
+      "replacement": "第$1局"
+    },
+    {
+      "pattern": "over\\s+(\\d+)",
+      "replacement": "第$1轮"
+    },
+    {
+      "pattern": "hole\\s+(\\d+)",
+      "replacement": "第$1洞"
+    },
+    {
+      "pattern": "lap\\s+(\\d+)",
+      "replacement": "第$1圈"
+    },
+    {
+      "pattern": "lap\\s+(\\d+)",
+      "replacement": "第$1圈"
+    }
+  ]
+}

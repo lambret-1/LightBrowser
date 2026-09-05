@@ -2466,21 +2466,46 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         let alert = UIAlertController(title: "翻译模式 & 浏览器设置", message: nil, preferredStyle: .actionSheet)
         // 翻译模式切换
         let currentMode = TranslateManager.shared.currentMode
-        let modeNames: [TranslateManager.TranslateMode: String] = [.local: "本地翻译（仅离线词库）", .online: "在线翻译（百度接口）", .mixed: "混合翻译（推荐）", .alwaysOn: "自动翻译（默认离线+动态监听）"]
-        for mode in [TranslateManager.TranslateMode.local, .online, .mixed, .alwaysOn] {
+        let modeNames: [TranslateManager.TranslateMode: String] = [
+            .local: "本地翻译（仅离线词库）",
+            .online: "在线翻译（百度接口）",
+            .mixed: "混合翻译（推荐）",
+            .alwaysOn: "自动翻译（纯离线+动态监听）",
+            .autoEnhanced: "自动翻译增强（UI离线+长文本在线兜底）"
+        ]
+        for mode in [TranslateManager.TranslateMode.local, .online, .mixed, .alwaysOn, .autoEnhanced] {
             let isSelected = mode == currentMode
             let title = isSelected ? "✓ \(modeNames[mode] ?? "")" : (modeNames[mode] ?? "")
             alert.addAction(UIAlertAction(title: title, style: .default) { _ in
                 TranslateManager.shared.setMode(mode)
                 self.showToast("已切换为：\(modeNames[mode] ?? "")")
-                // v16.10 如果切换到自动翻译，立即对当前页面执行翻译
-                if mode == .alwaysOn {
+                if mode == .alwaysOn || mode == .autoEnhanced {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         self.autoTranslateIfNeeded()
                     }
                 }
             })
         }
+        // v16.11 未翻译词条采集
+        let collectTitle = TranslateManager.shared.isCollectingUntranslated ? "📝 停止采集未翻译词条" : "📝 开始采集未翻译词条"
+        alert.addAction(UIAlertAction(title: collectTitle, style: .default) { _ in
+            if TranslateManager.shared.isCollectingUntranslated {
+                let words = TranslateManager.shared.stopCollectingUntranslated()
+                self.showToast("采集结束，共\(words.count)个未翻译词条")
+                // 保存到文件
+                let text = words.joined(separator: "\n")
+                let alert2 = UIAlertController(title: "未翻译词条（\(words.count)个）", message: text.count > 2000 ? String(text.prefix(2000)) + "\n...（更多请复制完整）" : text, preferredStyle: .alert)
+                alert2.addAction(UIAlertAction(title: "复制全部", style: .default) { _ in
+                    UIPasteboard.general.string = text
+                    self.showToast("已复制到剪贴板")
+                })
+                alert2.addAction(UIAlertAction(title: "关闭", style: .cancel))
+                self.present(alert2, animated: true)
+            } else {
+                TranslateManager.shared.startCollectingUntranslated()
+                self.showToast("已开始采集，翻译页面后查看结果")
+            }
+        })
         alert.addAction(UIAlertAction(title: "──────────", style: .default, handler: nil))
         // 广告拦截开关
         let adBlockTitle = adBlockEnabled ? "广告拦截：已开启（点击关闭）" : "广告拦截：已关闭（点击开启）"

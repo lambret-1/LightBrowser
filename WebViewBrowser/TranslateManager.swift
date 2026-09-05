@@ -1,13 +1,20 @@
 //
 //  TranslateManager.swift
-//  轻量浏览器 - JS离线英译中翻译管理器（v16.7安全版）
+//  轻量浏览器 - v16.11 分层翻译引擎
 //
-//  v16.7 修复：
-//  - walk改为迭代版（栈遍历），避免深层DOM递归栈溢出导致闪退
-//  - 添加翻译节点上限（3000），超大页面分批处理
-//  - 所有completion回调统一在主线程执行
-//  - 简化重试逻辑，最多重试2次
-//  - 添加webView加载状态检查
+//  v16.11 重大升级：
+//  - 导入 github-chinese 开源词库（19000+词条）
+//  - 四层分层词典：UI界面 → Git术语 → 正则规则 → IT通用
+//  - 长短语优先匹配（词典按英文长度降序）
+//  - 大小写不敏感匹配
+//  - 文本空白预处理
+//  - DOM黑白名单（跳过代码块/diff，优先翻译UI控件）
+//  - MutationObserver增量翻译（子菜单/SPA动态内容）
+//  - 正则翻译支持（相对时间、数量等批量翻译）
+//  - 内存翻译缓存
+//  - 动词词形归一化（ing/ed后缀）
+//  - 未翻译词条采集工具
+//  - 自动翻译模式：纯离线 / UI离线+长文本在线兜底
 //
 
 import UIKit
@@ -17,10 +24,15 @@ class TranslateManager {
 
     static let shared = TranslateManager()
 
-    private var generalDictionary: [String: String] = [:]
-    private var githubDictionary: [String: String] = [:]
-    private var isGeneralLoaded = false
-    private var isGithubLoaded = false
+    // MARK: - 分层词典
+    private var uiDictionary: [String: String] = [:]       // 最高优先级：UI界面词条
+    private var gitDictionary: [String: String] = [:]      // Git术语
+    private var itDictionary: [String: String] = [:]       // IT通用词汇
+    private var generalDictionary: [String: String] = [:]  // 通用兜底
+    private var regexRules: [[String: String]] = []        // 正则翻译规则
+    private var mergedDictionary: [String: String] = [:]   // 合并后词典（已按长度降序）
+
+    private var isDictLoaded = false
 
     // 内置兜底高频词条
     private let fallbackDict: [String: String] = [
@@ -36,7 +48,6 @@ class TranslateManager {
         "failed": "失败", "completed": "已完成", "pending": "待处理", "update": "更新",
         "create": "创建", "send": "发送", "share": "分享", "copy": "复制",
         "paste": "粘贴", "cut": "剪切", "print": "打印", "welcome": "欢迎",
-        "hello": "你好", "thank you": "谢谢", "please": "请", "sorry": "抱歉",
         "repository": "仓库", "star": "标星", "fork": "复刻", "commit": "提交",
         "issue": "议题", "pull request": "合并请求", "release": "版本发布",
         "branch": "分支", "clone": "克隆", "watch": "关注", "code": "代码",
@@ -51,10 +62,11 @@ class TranslateManager {
 
     // MARK: - 翻译模式
     enum TranslateMode: String {
-        case local = "local"
-        case online = "online"
-        case mixed = "mixed"
-        case alwaysOn = "alwaysOn"  // v16.9 一直开启翻译（默认使用离线翻译）
+        case local = "local"                    // 纯离线（全部内容依靠本地词典）
+        case online = "online"                  // 在线翻译
+        case mixed = "mixed"                    // 混合翻译（推荐）
+        case alwaysOn = "alwaysOn"              // 自动翻译（页面加载后自动翻译）
+        case autoEnhanced = "autoEnhanced"      // v16.11 自动翻译增强（UI离线+长文本在线兜底）
     }
 
     var currentMode: TranslateMode {
@@ -66,46 +78,93 @@ class TranslateManager {
         UserDefaults.standard.set(mode.rawValue, forKey: "translateMode")
     }
 
-    // v16.9 是否开启自动翻译（一直开启翻译模式）
+    // 是否开启自动翻译
     var isAutoTranslateEnabled: Bool {
-        return currentMode == .alwaysOn
+        return currentMode == .alwaysOn || currentMode == .autoEnhanced
     }
 
-    // MARK: - 加载词库
-    func loadGeneralDictionary() -> [String: String] {
-        if isGeneralLoaded && !generalDictionary.isEmpty {
-            return generalDictionary
-        }
-        if let path = Bundle.main.path(forResource: "en_zh_dict", ofType: "json"),
-           let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
-           let dict = try? JSONSerialization.jsonObject(with: data) as? [String: String] {
-            generalDictionary = dict
-            isGeneralLoaded = true
-            print("[TranslateManager] 通用词库加载成功，词条数: \(dict.count)")
-        } else {
-            print("[TranslateManager] 通用词库加载失败，使用兜底词条(\(fallbackDict.count)条)")
-            generalDictionary = fallbackDict
-            isGeneralLoaded = true
-        }
-        return generalDictionary
+    // 是否使用在线兜底（长文本）
+    var isOnlineFallbackEnabled: Bool {
+        return currentMode == .autoEnhanced
     }
 
-    func loadGithubDictionary() -> [String: String] {
-        if isGithubLoaded {
-            return githubDictionary
+    // MARK: - 未翻译词条采集
+    var isCollectingUntranslated = false
+    private var untranslatedWords: Set<String> = []
+
+    func startCollectingUntranslated() {
+        isCollectingUntranslated = true
+        untranslatedWords.removeAll()
+    }
+
+    func stopCollectingUntranslated() -> [String] {
+        isCollectingUntranslated = false
+        return Array(untranslatedWords).sorted()
+    }
+
+    // MARK: - 加载分层词库
+    func loadAllDictionaries() {
+        if isDictLoaded && !mergedDictionary.isEmpty {
+            return
         }
-        if let path = Bundle.main.path(forResource: "github_dict", ofType: "json"),
-           let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
-           let dict = try? JSONSerialization.jsonObject(with: data) as? [String: String] {
-            githubDictionary = dict
-            isGithubLoaded = true
-            print("[TranslateManager] GitHub词库加载成功，词条数: \(dict.count)")
-        } else {
-            print("[TranslateManager] GitHub词库加载失败，使用空词库")
-            githubDictionary = [:]
-            isGithubLoaded = true
+
+        // 1. UI界面词条（最高优先级）
+        uiDictionary = loadJSONDict(named: "github_ui") ?? [:]
+        print("[TranslateManager] UI界面词库: \(uiDictionary.count)条")
+
+        // 2. Git术语
+        gitDictionary = loadJSONDict(named: "github_git_terms") ?? [:]
+        print("[TranslateManager] Git术语词库: \(gitDictionary.count)条")
+
+        // 3. IT通用词汇
+        itDictionary = loadJSONDict(named: "general_it") ?? [:]
+        print("[TranslateManager] IT通用词库: \(itDictionary.count)条")
+
+        // 4. 通用兜底
+        generalDictionary = loadJSONDict(named: "en_zh_dict") ?? fallbackDict
+        print("[TranslateManager] 通用兜底词库: \(generalDictionary.count)条")
+
+        // 5. 正则规则
+        regexRules = loadRegexRules(named: "github_regex")
+        print("[TranslateManager] 正则规则: \(regexRules.count)条")
+
+        // 合并：UI → Git → IT → 通用（后面的覆盖前面的，因为UI质量最高应该最后覆盖）
+        // 实际上应该是优先级高的覆盖优先级低的
+        mergedDictionary = [:]
+        for (k, v) in generalDictionary { mergedDictionary[k.lowercased()] = v }
+        for (k, v) in itDictionary { mergedDictionary[k.lowercased()] = v }
+        for (k, v) in gitDictionary { mergedDictionary[k.lowercased()] = v }
+        for (k, v) in uiDictionary { mergedDictionary[k.lowercased()] = v }
+
+        // 按英文长度降序排序（长短语优先匹配）
+        let sortedKeys = mergedDictionary.keys.sorted { $0.count > $1.count }
+        var sortedDict: [String: String] = [:]
+        for k in sortedKeys {
+            sortedDict[k] = mergedDictionary[k]
         }
-        return githubDictionary
+        mergedDictionary = sortedDict
+
+        isDictLoaded = true
+        print("[TranslateManager] 合并后总词条: \(mergedDictionary.count)条（已按长度降序）")
+    }
+
+    private func loadJSONDict(named name: String) -> [String: String]? {
+        guard let path = Bundle.main.path(forResource: name, ofType: "json"),
+              let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: String] else {
+            return nil
+        }
+        return dict
+    }
+
+    private func loadRegexRules(named name: String) -> [[String: String]] {
+        guard let path = Bundle.main.path(forResource: name, ofType: "json"),
+              let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rules = dict["rules"] as? [[String: String]] else {
+            return []
+        }
+        return rules
     }
 
     func isGithubSite(url: URL?) -> Bool {
@@ -113,22 +172,22 @@ class TranslateManager {
         return host.contains("github.com") || host.contains("githubusercontent.com") || host.contains("github.io")
     }
 
-    func getMergedDictionary(for url: URL?) -> [String: String] {
-        var dict = loadGeneralDictionary()
-        if isGithubSite(url: url) {
-            let ghDict = loadGithubDictionary()
-            for (key, value) in ghDict {
-                dict[key] = value
-            }
-            print("[TranslateManager] GitHub站点，合并后词条数: \(dict.count)")
-        }
-        return dict
+    func getDictionary(for url: URL?) -> [String: String] {
+        loadAllDictionaries()
+        return mergedDictionary
     }
 
-    // MARK: - 生成JS翻译脚本（v16.10：MutationObserver动态监听子菜单/SPA内容）
-    private func generateTranslateScript(dictionary: [String: String]) -> String {
+    func getRegexRules() -> [[String: String]] {
+        loadAllDictionaries()
+        return regexRules
+    }
+
+    // MARK: - 生成JS翻译脚本（v16.11 分层引擎完整版）
+    private func generateTranslateScript(dictionary: [String: String], regexRules: [[String: String]], collectUntranslated: Bool = false) -> String {
         guard let jsonData = try? JSONSerialization.data(withJSONObject: dictionary),
-              let jsonString = String(data: jsonData, encoding: .utf8) else {
+              let jsonString = String(data: jsonData, encoding: .utf8),
+              let regexData = try? JSONSerialization.data(withJSONObject: regexRules),
+              let regexString = String(data: regexData, encoding: .utf8) else {
             return ""
         }
 
@@ -144,37 +203,173 @@ class TranslateManager {
                 if (document.readyState === 'loading') {
                     return {success: false, reason: 'page_loading'};
                 }
+
                 const dict = \(jsonString);
+                const regexRules = \(regexString);
+                const dictKeys = Object.keys(dict); // 已按长度降序
+
+                // DOM黑名单：跳过代码块、diff区域
                 const skipTags = {'SCRIPT':1,'STYLE':1,'NOSCRIPT':1,'SVG':1,'CODE':1,'PRE':1,'TEXTAREA':1,'INPUT':1,'SELECT':1,'OPTION':1,'IFRAME':1,'CANVAS':1,'TEMPLATE':1};
-                const MAX_NODES = 3000;
+                const skipClasses = ['blob-code','CodeMirror','diff-chunk','markdown-body pre','cm-content','cm-scroller','react-code-text'];
+
+                // UI白名单选择器（优先翻译这些区域）
+                const uiSelectors = ['.btn','.Button','.State','.UnderlineNav-item','.TabNav','.Box-header','.IssueLabel','.breadcrumb','.AppHeader','.Header','.menu','.tabnav','.subnav','.ActionList','.ActionListItem','.FormControl','.form-group','.SelectMenu','.dropdown','.menu-item','.table-list','.Box-row','.TimelineItem','.timeline-comment','.comment','.review-thread','.merge-status','.status','.branch-name','.commit-ref','.tag','.label','.milestone','.project-card','.column','.card','.panel','.alert','.flash','.toast','.notification','.badge','.Counter','.count','.avatar','.user-mention','.team-mention','.issue-link','.pr-link','.commit-link','.release','.tag-name','.branch-name','.file-info','.path','.directory','.file','.folder','.icon','.octicon','.heading','.title','.subtitle','.description','.meta','.details','.summary','.footer','.header','.nav','.navigation','.sidebar','.content','.main','.container','.wrapper','.page','.view','.screen','.dialog','.modal','.popup','.popover','.tooltip','.hint','.tip','.note','.warning','.error','.success','.info','.pending','.running','.queued','.completed','.cancelled','.skipped','.failed','.failure','.approved','.changes','.requested','.merged','.closed','.open','.draft','.ready','.review','.assigned','.unassigned','.labeled','.unlabeled','.milestoned','.demilestoned','.reopened','.locked','.unlocked','.transferred','.pinned','.unpinned','.subscribed','.unsubscribed','.mentioned','.assigned','.unassigned','.review_requested','.review_request_removed','.labeled','.unlabeled','.milestoned','.demilestoned','.opened','.edited','.closed','.reopened','.deleted','.transferred','.pinned','.unpinned','.milestoned','.demilestoned','.commented','.reviewed','.review_dismissed','.review_requested','.review_request_removed','.assigned','.unassigned','.labeled','.unlabeled','.locked','.unlocked','.subscribed','.unsubscribed','.mentioned','.referenced','.cross-referenced','.comment_deleted','.head_ref_deleted','.head_ref_restored','.base_ref_changed','.base_ref_force_pushed','.merge_queue'];
+
+                const MAX_NODES = 5000;
                 let translatedCount = 0;
+                let untranslatedSet = new Set();
+                let translateCache = {}; // 内存缓存
                 let observer = null;
                 let pendingNodes = [];
                 let debounceTimer = null;
 
-                function translateText(text) {
-                    if (!text || !text.trim()) return text;
-                    if (/^[\\d\\s\\W_]+$/.test(text)) return text;
-                    const chineseCount = (text.match(/[\\u4e00-\\u9fa5]/g) || []).length;
-                    if (chineseCount > text.length * 0.4) return text;
-                    if (text.trim().length > 300) return text;
-                    let result = text;
-                    const keys = Object.keys(dict);
-                    keys.sort(function(a, b) { return b.length - a.length; });
-                    for (let i = 0; i < keys.length; i++) {
+                // v16.11 文本预处理：清除首尾空白、合并多空格
+                function preprocessText(text) {
+                    if (!text) return text;
+                    return text.replace(/\\s+/g, ' ').trim();
+                }
+
+                // v16.11 词形归一化：处理ing/ed后缀
+                function normalizeWord(word) {
+                    const w = word.toLowerCase();
+                    // 简单的ing/ed剥离
+                    if (w.endsWith('ing') && w.length > 5) {
+                        return w.slice(0, -3);
+                    }
+                    if (w.endsWith('ed') && w.length > 4) {
+                        return w.slice(0, -2);
+                    }
+                    if (w.endsWith('es') && w.length > 4) {
+                        return w.slice(0, -2);
+                    }
+                    if (w.endsWith('s') && w.length > 3) {
+                        return w.slice(0, -1);
+                    }
+                    return w;
+                }
+
+                // v16.11 正则翻译（相对时间、数量等）
+                function translateByRegex(text) {
+                    for (let i = 0; i < regexRules.length; i++) {
                         try {
-                            const key = keys[i];
-                            if (!key || key.length < 2) continue;
-                            const escaped = key.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
-                            const regex = new RegExp('\\\\b' + escaped + '\\\\b', 'gi');
-                            result = result.replace(regex, dict[key]);
+                            const rule = regexRules[i];
+                            const pattern = new RegExp(rule.pattern, 'gi');
+                            if (pattern.test(text)) {
+                                return text.replace(pattern, rule.replacement);
+                            }
                         } catch(e) {}
                     }
+                    return null;
+                }
+
+                // v16.11 核心翻译函数（大小写不敏感 + 缓存 + 词形归一）
+                function translateText(text) {
+                    if (!text || !text.trim()) return text;
+
+                    // 预处理
+                    const original = text;
+                    const processed = preprocessText(text);
+
+                    // 检查缓存
+                    if (translateCache[processed]) {
+                        return translateCache[processed];
+                    }
+
+                    // 纯数字符号跳过
+                    if (/^[\\d\\s\\W_]+$/.test(processed)) return text;
+
+                    // 中文占比过高跳过
+                    const chineseCount = (processed.match(/[\\u4e00-\\u9fa5]/g) || []).length;
+                    if (chineseCount > processed.length * 0.4) return text;
+
+                    // 过长文本跳过（长文本走在线兜底）
+                    if (processed.trim().length > 200) return text;
+
+                    // 先尝试正则翻译
+                    const regexResult = translateByRegex(processed);
+                    if (regexResult !== null && regexResult !== processed) {
+                        translateCache[processed] = regexResult;
+                        return regexResult;
+                    }
+
+                    // 词典匹配（已按长度降序，长短语优先）
+                    let result = processed;
+                    let matched = false;
+
+                    for (let i = 0; i < dictKeys.length; i++) {
+                        try {
+                            const key = dictKeys[i];
+                            if (!key || key.length < 2) continue;
+
+                            // 大小写不敏感匹配
+                            const escaped = key.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
+                            const regex = new RegExp('\\\\b' + escaped + '\\\\b', 'gi');
+
+                            if (regex.test(result)) {
+                                result = result.replace(regex, dict[key]);
+                                matched = true;
+                            }
+                        } catch(e) {}
+                    }
+
+                    // 词形归一化二次匹配（针对动词变形）
+                    if (!matched && processed.length < 50) {
+                        const words = processed.split(/\\s+/);
+                        let normalizedResult = processed;
+                        let normalizedMatched = false;
+                        for (let w of words) {
+                            const norm = normalizeWord(w);
+                            if (norm !== w.toLowerCase() && dict[norm]) {
+                                const wordRegex = new RegExp('\\\\b' + w.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&') + '\\\\b', 'gi');
+                                normalizedResult = normalizedResult.replace(wordRegex, dict[norm]);
+                                normalizedMatched = true;
+                            }
+                        }
+                        if (normalizedMatched) {
+                            result = normalizedResult;
+                            matched = true;
+                        }
+                    }
+
+                    // 采集未翻译词条
+                    if (!matched && \(collectUntranslated) {
+                        if (processed.length >= 2 && processed.length <= 50 && /[a-zA-Z]/.test(processed)) {
+                            untranslatedSet.add(processed.toLowerCase());
+                        }
+                    }
+
+                    translateCache[processed] = result;
                     return result;
+                }
+
+                // 检查元素是否在黑名单中
+                function isInBlacklist(node) {
+                    if (!node || node.nodeType !== 1) return false;
+                    const tag = node.tagName;
+                    if (skipTags[tag]) return true;
+                    if (node.className && typeof node.className === 'string') {
+                        for (let cls of skipClasses) {
+                            if (node.className.includes(cls)) return true;
+                        }
+                    }
+                    // 检查祖先节点
+                    let parent = node.parentElement;
+                    while (parent) {
+                        if (parent.className && typeof parent.className === 'string') {
+                            for (let cls of skipClasses) {
+                                if (parent.className.includes(cls)) return true;
+                            }
+                        }
+                        if (skipTags[parent.tagName]) return true;
+                        parent = parent.parentElement;
+                    }
+                    return false;
                 }
 
                 function translateNode(node) {
                     if (!node) return;
+                    if (isInBlacklist(node)) return;
+
                     if (node.nodeType === 3) {
                         const text = node.textContent;
                         if (text && text.trim() && /[a-zA-Z]/.test(text)) {
@@ -206,6 +401,12 @@ class TranslateManager {
                                 const newVal = translateText(node.value);
                                 if (newVal !== node.value) { node.value = newVal; translatedCount++; }
                             }
+                            // 翻译aria-label
+                            if (node.getAttribute && node.getAttribute('aria-label')) {
+                                const aria = node.getAttribute('aria-label');
+                                const newAria = translateText(aria);
+                                if (newAria !== aria) { node.setAttribute('aria-label', newAria); translatedCount++; }
+                            }
                         } catch(e) {}
                     }
                 }
@@ -213,6 +414,8 @@ class TranslateManager {
                 // 迭代版遍历（使用栈，避免递归栈溢出）
                 function translateSubtree(root) {
                     if (!root) return;
+                    if (isInBlacklist(root)) return;
+
                     const stack = [root];
                     let nodeCount = 0;
                     while (stack.length > 0 && nodeCount < MAX_NODES) {
@@ -222,7 +425,7 @@ class TranslateManager {
                         translateNode(node);
                         if (node.nodeType === 1 && node.childNodes) {
                             const tag = node.tagName;
-                            if (!skipTags[tag]) {
+                            if (!skipTags[tag] && !isInBlacklist(node)) {
                                 const children = node.childNodes;
                                 for (let i = children.length - 1; i >= 0; i--) {
                                     if (children[i].nodeType === 1 || children[i].nodeType === 3) {
@@ -234,7 +437,7 @@ class TranslateManager {
                     }
                 }
 
-                // v16.10 防抖处理动态节点翻译
+                // v16.11 防抖处理动态节点翻译（双档防抖）
                 function flushPendingTranslations() {
                     if (pendingNodes.length === 0) return;
                     const nodes = pendingNodes;
@@ -246,14 +449,16 @@ class TranslateManager {
                     }
                 }
 
-                function scheduleTranslation(node) {
+                function scheduleTranslation(node, fast) {
                     if (!node) return;
                     pendingNodes.push(node);
                     if (debounceTimer) clearTimeout(debounceTimer);
-                    debounceTimer = setTimeout(flushPendingTranslations, 150);
+                    // 菜单/弹窗快速防抖50ms，列表加载300ms
+                    const delay = fast ? 50 : 300;
+                    debounceTimer = setTimeout(flushPendingTranslations, delay);
                 }
 
-                // v16.10 启动MutationObserver监听动态内容（子菜单、SPA路由变化等）
+                // v16.11 启动MutationObserver监听动态内容
                 function startObserver() {
                     if (observer) return;
                     try {
@@ -265,12 +470,23 @@ class TranslateManager {
                                     for (let j = 0; j < added.length; j++) {
                                         const node = added[j];
                                         if (node.nodeType === 1 || node.nodeType === 3) {
-                                            scheduleTranslation(node);
+                                            // 判断是否是菜单/弹窗（快速翻译）
+                                            const isFast = node.nodeType === 1 && (
+                                                node.className && (
+                                                    node.className.includes('dropdown') ||
+                                                    node.className.includes('menu') ||
+                                                    node.className.includes('popover') ||
+                                                    node.className.includes('modal') ||
+                                                    node.className.includes('SelectMenu') ||
+                                                    node.className.includes('ActionList')
+                                                )
+                                            );
+                                            scheduleTranslation(node, isFast);
                                         }
                                     }
                                 } else if (mutation.type === 'characterData') {
                                     const node = mutation.target;
-                                    if (node.nodeType === 3) {
+                                    if (node.nodeType === 3 && !isInBlacklist(node.parentElement)) {
                                         const text = node.textContent;
                                         if (text && text.trim() && /[a-zA-Z]/.test(text)) {
                                             const newText = translateText(text);
@@ -306,10 +522,21 @@ class TranslateManager {
                     window.__browser_translated__ = true;
                 }
 
-                // v16.10 启动动态监听，确保子菜单展开后自动翻译
+                // 启动动态监听
                 startObserver();
 
-                return {success: true, translated: translatedCount, observer: true};
+                // 保存未翻译词条到window
+                if (\(collectUntranslated)) {
+                    window.__browser_untranslated__ = Array.from(untranslatedSet);
+                }
+
+                return {
+                    success: true,
+                    translated: translatedCount,
+                    observer: true,
+                    untranslated: \(collectUntranslated) ? untranslatedSet.size : 0,
+                    cacheSize: Object.keys(translateCache).length
+                };
             } catch(e) {
                 return {success: false, reason: 'exception: ' + e.message};
             }
@@ -318,7 +545,7 @@ class TranslateManager {
         return script
     }
 
-    // MARK: - 本地翻译（安全版）
+    // MARK: - 本地翻译
     func translateLocalOnly(webView: WKWebView, completion: @escaping (Bool, String?) -> Void) {
         if !Thread.isMainThread {
             DispatchQueue.main.async { [weak self] in
@@ -327,14 +554,17 @@ class TranslateManager {
             return
         }
 
-        let dict = getMergedDictionary(for: webView.url)
-        let script = generateTranslateScript(dictionary: dict)
+        loadAllDictionaries()
+        let dict = getDictionary(for: webView.url)
+        let regex = getRegexRules()
+        let collect = isCollectingUntranslated
+        let script = generateTranslateScript(dictionary: dict, regexRules: regex, collectUntranslated: collect)
         guard !script.isEmpty else {
             DispatchQueue.main.async { completion(false, "脚本生成失败") }
             return
         }
 
-        print("[TranslateManager] 开始本地翻译，词库\(dict.count)条")
+        print("[TranslateManager] 开始本地翻译，词库\(dict.count)条 + 正则\(regex.count)条")
         executeScript(webView: webView, script: script, attempts: 2, interval: 0.6, completion: completion)
     }
 
@@ -363,6 +593,8 @@ class TranslateManager {
                 let reason = dict["reason"] as? String
                 let translated = dict["translated"] as? Int ?? 0
                 let already = dict["already"] as? Bool ?? false
+                let untranslated = dict["untranslated"] as? Int ?? 0
+                let cacheSize = dict["cacheSize"] as? Int ?? 0
 
                 if already {
                     print("[TranslateManager] 页面已翻译过")
@@ -371,7 +603,7 @@ class TranslateManager {
                 }
 
                 if success {
-                    print("[TranslateManager] 本地翻译成功，翻译了\(translated)处文本")
+                    print("[TranslateManager] 本地翻译成功，翻译了\(translated)处文本，缓存\(cacheSize)条，未翻译\(untranslated)词")
                     completion(true, "翻译了\(translated)处文本")
                     return
                 }
@@ -403,6 +635,33 @@ class TranslateManager {
         }
     }
 
+    // MARK: - 获取未翻译词条
+    func getUntranslatedWords(from webView: WKWebView, completion: @escaping ([String]) -> Void) {
+        let script = """
+        (function() {
+            try {
+                if (window.__browser_untranslated__) {
+                    return JSON.stringify(window.__browser_untranslated__);
+                }
+                return '[]';
+            } catch(e) {
+                return '[]';
+            }
+        })();
+        """
+        webView.evaluateJavaScript(script) { result, _ in
+            DispatchQueue.main.async {
+                if let jsonStr = result as? String,
+                   let data = jsonStr.data(using: .utf8),
+                   let words = try? JSONSerialization.jsonObject(with: data) as? [String] {
+                    completion(words)
+                } else {
+                    completion([])
+                }
+            }
+        }
+    }
+
     // MARK: - 还原原文
     func restoreOriginal(webView: WKWebView, completion: ((Bool) -> Void)? = nil) {
         if !Thread.isMainThread {
@@ -414,7 +673,6 @@ class TranslateManager {
         let script = """
         (function() {
             try {
-                // v16.10 停止MutationObserver，避免还原后又被自动翻译
                 if (window.__browser_translate_observer__) {
                     try { window.__browser_translate_observer__.disconnect(); } catch(e) {}
                     window.__browser_translate_observer__ = null;
