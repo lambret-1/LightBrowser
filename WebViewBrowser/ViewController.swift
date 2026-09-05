@@ -3839,7 +3839,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         // 根据翻译模式执行
         let mode = TranslateManager.shared.currentMode
         switch mode {
-        case .local, .alwaysOn:  // v16.10 自动翻译默认使用离线翻译
+        case .local, .alwaysOn, .autoEnhanced:  // v16.11 自动翻译增强默认使用离线翻译
             startLocalTranslation()
         case .online:
             startTranslation()
