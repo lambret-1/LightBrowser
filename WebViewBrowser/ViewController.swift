@@ -1153,6 +1153,9 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             let zoomJS = "(function(){var meta=document.querySelector('meta[name=viewport]');if(meta){meta.content='width=device-width,initial-scale=1.0,minimum-scale=0.5,maximum-scale=10.0,user-scalable=yes';}else{var m=document.createElement('meta');m.name='viewport';m.content='width=device-width,initial-scale=1.0,minimum-scale=0.5,maximum-scale=10.0,user-scalable=yes';document.head.appendChild(m);}})();"
             let zoomScript = WKUserScript(source: zoomJS, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
             config.userContentController.addUserScript(zoomScript)
+            // v16.11.2 注入翻译词典到window全局变量（避免大脚本嵌入导致evaluateJavaScript超时）
+            let dictScript = WKUserScript(source: TranslateManager.shared.dictionaryInjectionScript(), injectionTime: .atDocumentStart, forMainFrameOnly: true)
+            config.userContentController.addUserScript(dictScript)
             let webView = WKWebView(frame: .zero, configuration: config)
             webView.navigationDelegate = self
             webView.uiDelegate = self
