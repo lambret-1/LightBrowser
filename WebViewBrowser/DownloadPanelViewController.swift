@@ -386,7 +386,7 @@ class DownloadCell: UITableViewCell {
 
         nameLabel.font = .systemFont(ofSize: 15, weight: .medium)
         nameLabel.textColor = .label
-        nameLabel.lineBreakMode = .byTruncatedMiddle
+        nameLabel.lineBreakMode = .byTruncatingMiddle
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(nameLabel)
 
