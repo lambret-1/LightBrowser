@@ -858,7 +858,13 @@ class AIChatCell: UITableViewCell {
     private let thinkingButton = UIButton(type: .system)
     private let thinkingTextView = UITextView()
     var isThinkingExpanded = false
-    private var thinkingHeightConstraint: NSLayoutConstraint?
+    
+    // 左右对齐约束（init中创建，configure中切换isActive）
+    private var bubbleLeading: NSLayoutConstraint!
+    private var bubbleTrailing: NSLayoutConstraint!
+    private var roleLeading: NSLayoutConstraint!
+    private var roleTrailing: NSLayoutConstraint!
+    private var thinkingHeight: NSLayoutConstraint!
     
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -932,6 +938,7 @@ class AIChatCell: UITableViewCell {
         thinkingTextView.isHidden = true
         thinkingContainer.addSubview(thinkingTextView)
         
+        // thinkingContainer 内部约束（固定）
         NSLayoutConstraint.activate([
             thinkingButton.topAnchor.constraint(equalTo: thinkingContainer.topAnchor, constant: 6),
             thinkingButton.leadingAnchor.constraint(equalTo: thinkingContainer.leadingAnchor, constant: 10),
@@ -943,19 +950,36 @@ class AIChatCell: UITableViewCell {
             thinkingTextView.bottomAnchor.constraint(equalTo: thinkingContainer.bottomAnchor, constant: -6),
         ])
         
+        // 创建左右对齐约束
+        bubbleLeading = bubbleView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 12)
+        bubbleTrailing = bubbleView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12)
+        roleLeading = roleLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor)
+        roleTrailing = roleLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor)
+        thinkingHeight = thinkingContainer.heightAnchor.constraint(equalToConstant: 0)
+        
+        // 全部约束在init中固定设置
         NSLayoutConstraint.activate([
             bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
             bubbleView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -4),
             bubbleView.widthAnchor.constraint(lessThanOrEqualTo: contentView.widthAnchor, multiplier: 0.85),
+            bubbleLeading,
             messageLabel.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: 10),
             messageLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 12),
             messageLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -12),
-            actionStack.topAnchor.constraint(equalTo: messageLabel.bottomAnchor, constant: 8),
+            thinkingContainer.topAnchor.constraint(equalTo: messageLabel.bottomAnchor, constant: 8),
+            thinkingContainer.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 8),
+            thinkingContainer.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -8),
+            thinkingHeight,
+            actionStack.topAnchor.constraint(equalTo: thinkingContainer.bottomAnchor, constant: 8),
             actionStack.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 12),
             actionStack.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -8),
             actionStack.heightAnchor.constraint(equalToConstant: 24),
             roleLabel.bottomAnchor.constraint(equalTo: bubbleView.topAnchor, constant: -2),
+            roleLeading,
         ])
+        // 默认AI样式：左对齐
+        bubbleTrailing.isActive = false
+        roleTrailing.isActive = false
     }
     
     required init?(coder: NSCoder) { fatalError() }
@@ -969,52 +993,37 @@ class AIChatCell: UITableViewCell {
         roleLabel.text = isUser ? "我" : "AI"
         actionStack.isHidden = isUser
         
-        // 思考过程
+        // 切换左右对齐（只改isActive，不重建约束）
+        if isUser {
+            bubbleLeading.isActive = false
+            bubbleTrailing.isActive = true
+            roleLeading.isActive = false
+            roleTrailing.isActive = true
+            roleLabel.textAlignment = .right
+            messageLabel.textColor = .white
+            bubbleView.layer.maskedCorners = [.layerMinXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMinYCorner]
+        } else {
+            bubbleLeading.isActive = true
+            bubbleTrailing.isActive = false
+            roleLeading.isActive = true
+            roleTrailing.isActive = false
+            roleLabel.textAlignment = .left
+            messageLabel.textColor = .label
+            bubbleView.layer.maskedCorners = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner, .layerMinXMinYCorner]
+        }
+        
+        // 思考过程（只控制isHidden，不修改约束）
         if let thinking = message.thinkingContent, !thinking.isEmpty, !isUser {
             thinkingContainer.isHidden = false
+            thinkingHeight.isActive = false
             thinkingTextView.text = thinking
             thinkingButton.setTitle(isThinkingExpanded ? "💭 思考过程 ▲" : "💭 思考过程 ▼", for: .normal)
             thinkingTextView.isHidden = !isThinkingExpanded
         } else {
             thinkingContainer.isHidden = true
+            thinkingHeight.isActive = true
             thinkingTextView.isHidden = true
         }
-        
-        bubbleView.constraints.forEach { $0.isActive = false }
-        roleLabel.constraints.forEach { $0.isActive = false }
-        
-        if isUser {
-            bubbleView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12).isActive = true
-            bubbleView.layer.maskedCorners = [.layerMinXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMinYCorner]
-            roleLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor).isActive = true
-            roleLabel.textAlignment = .right
-            messageLabel.textColor = .white
-        } else {
-            bubbleView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 12).isActive = true
-            bubbleView.layer.maskedCorners = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner, .layerMinXMinYCorner]
-            roleLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor).isActive = true
-            roleLabel.textAlignment = .left
-            messageLabel.textColor = .label
-        }
-        
-        messageLabel.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: 10).isActive = true
-        messageLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 12).isActive = true
-        messageLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -12).isActive = true
-        
-        // 思考过程在消息正文下方
-        if !thinkingContainer.isHidden {
-            thinkingContainer.topAnchor.constraint(equalTo: messageLabel.bottomAnchor, constant: 8).isActive = true
-            thinkingContainer.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 8).isActive = true
-            thinkingContainer.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -8).isActive = true
-            actionStack.topAnchor.constraint(equalTo: thinkingContainer.bottomAnchor, constant: 8).isActive = true
-        } else {
-            actionStack.topAnchor.constraint(equalTo: messageLabel.bottomAnchor, constant: 8).isActive = true
-        }
-        
-        actionStack.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 12).isActive = true
-        actionStack.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -8).isActive = true
-        actionStack.heightAnchor.constraint(equalToConstant: 24).isActive = true
-        roleLabel.bottomAnchor.constraint(equalTo: bubbleView.topAnchor, constant: -2).isActive = true
     }
     
     @objc private func toggleThinking() {
@@ -1024,7 +1033,7 @@ class AIChatCell: UITableViewCell {
         delegate?.didToggleThinking(at: messageIndex)
     }
     
-    /// 流式输出时直接更新纯文本，不重新渲染 Markdown，避免高频重建约束导致崩溃
+    /// 流式输出时直接更新纯文本
     func updateStreamingText(_ text: String) {
         messageLabel.attributedText = nil
         messageLabel.text = text
