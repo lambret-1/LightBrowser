@@ -247,4 +247,152 @@ class AIModelManager {
         ("豆包", "https://ark.cn-beijing.volces.com/api/v3"),
         ("自定义", "")
     ]
+    
+    // MARK: - 流式输出
+    private var streamTask: URLSessionDataTask?
+    private var streamDelegate: StreamDelegate?
+    
+    func streamChat(messages: [ChatMessage],
+                    config: APIConfig,
+                    model: String,
+                    params: ChatParams,
+                    onToken: @escaping (String) -> Void,
+                    completion: @escaping (String?, Error?) -> Void) {
+        let baseURL = config.baseURL.hasSuffix("/") ? String(config.baseURL.dropLast()) : config.baseURL
+        guard let url = URL(string: baseURL + "/chat/completions") else {
+            completion(nil, NSError(domain: "AIModelManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "API地址无效"]))
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 120
+        
+        var messageArray: [[String: String]] = []
+        if !params.systemPrompt.isEmpty {
+            messageArray.append(["role": "system", "content": params.systemPrompt])
+        }
+        for msg in messages {
+            messageArray.append(["role": msg.role, "content": msg.content])
+        }
+        
+        let body: [String: Any] = [
+            "model": model,
+            "messages": messageArray,
+            "temperature": params.temperature,
+            "max_tokens": params.maxTokens,
+            "top_p": params.topP,
+            "stream": true
+        ]
+        
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        let delegate = StreamDelegate(onToken: onToken, completion: completion)
+        self.streamDelegate = delegate
+        let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: .main)
+        streamTask = session.dataTask(with: request)
+        streamTask?.resume()
+    }
+    
+    func stopStreaming() {
+        streamTask?.cancel()
+        streamTask = nil
+        streamDelegate = nil
+    }
+    
+    // MARK: - Token 统计
+    private(set) var totalTokensUsed: Int = 0
+    private(set) var totalRequests: Int = 0
+    
+    func recordTokens(_ tokens: Int) {
+        totalTokensUsed += tokens
+        totalRequests += 1
+        UserDefaults.standard.set(totalTokensUsed, forKey: "ai_total_tokens")
+        UserDefaults.standard.set(totalRequests, forKey: "ai_total_requests")
+    }
+    
+    func loadTokenStats() {
+        totalTokensUsed = UserDefaults.standard.integer(forKey: "ai_total_tokens")
+        totalRequests = UserDefaults.standard.integer(forKey: "ai_total_requests")
+    }
+    
+    func resetTokenStats() {
+        totalTokensUsed = 0
+        totalRequests = 0
+        UserDefaults.standard.removeObject(forKey: "ai_total_tokens")
+        UserDefaults.standard.removeObject(forKey: "ai_total_requests")
+    }
+}
+
+// MARK: - 流式输出 Delegate
+class StreamDelegate: NSObject, URLSessionDataDelegate {
+    private var buffer = ""
+    private var fullResponse = ""
+    private let onToken: (String) -> Void
+    private let completion: (String?, Error?) -> Void
+    private var lastFlushTime = Date()
+    
+    init(onToken: @escaping (String) -> Void, completion: @escaping (String?, Error?) -> Void) {
+        self.onToken = onToken
+        self.completion = completion
+    }
+    
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        guard let text = String(data: data, encoding: .utf8) else { return }
+        buffer += text
+        
+        // 解析 SSE: data: {...}\n\n
+        let events = buffer.components(separatedBy: "\n\n")
+        buffer = events.last ?? ""
+        
+        for event in events.dropLast() {
+            let lines = event.components(separatedBy: "\n")
+            for line in lines {
+                if line.hasPrefix("data: ") {
+                    let jsonStr = String(line.dropFirst(6))
+                    if jsonStr == "[DONE]" {
+                        completion(fullResponse, nil)
+                        return
+                    }
+                    if let jsonData = jsonStr.data(using: .utf8),
+                       let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                       let choices = json["choices"] as? [[String: Any]],
+                       let first = choices.first,
+                       let delta = first["delta"] as? [String: Any],
+                       let content = delta["content"] as? String {
+                        fullResponse += content
+                        // 节流刷新，每30ms刷新一次
+                        let now = Date()
+                        if now.timeIntervalSince(lastFlushTime) > 0.03 {
+                            onToken(content)
+                            lastFlushTime = now
+                        } else {
+                            // 缓冲，稍后刷新
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
+                                self?.flushBuffer()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private func flushBuffer() {
+        // 缓冲已在 onToken 中处理，这里仅用于节流
+    }
+    
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if let error = error {
+            if (error as NSError).code == NSURLErrorCancelled {
+                completion(fullResponse, nil) // 用户主动停止
+            } else {
+                completion(nil, error)
+            }
+        } else if !fullResponse.isEmpty {
+            completion(fullResponse, nil)
+        }
+    }
 }

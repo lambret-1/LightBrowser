@@ -32,6 +32,11 @@
 		4476EC437D27CD122CB15084 /* TencentTranslateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA45A7582909CA8597A5DCB8 /* TencentTranslateManager.swift */; };
 		54696B23815689CEDCA60EF7 /* AIModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0042031FEA3536886421E167 /* AIModelManager.swift */; };
 		42271473979A300DC64B6422 /* AIChatViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60F1E307A9012E45D7F1A1F /* AIChatViewController.swift */; };
+		A414B481314CBECAF2B69FD3 /* MarkdownRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCEF4EF4041D8861A4BA69EB /* MarkdownRenderer.swift */; };
+		AEF3F1E6488E8081F0A41B10 /* ConversationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07805AED947BDED432432552 /* ConversationManager.swift */; };
+		B23DCAEA6C4093FE26B259F0 /* KnowledgeBaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 936B6D26EAE1D51E3C34CD74 /* KnowledgeBaseManager.swift */; };
+		035F6F6EAFFBDAFDDD8B449E /* VoiceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4041B4BB87B7D1986D47360 /* VoiceService.swift */; };
+		B68361E7DF22A8C85B09738B /* WebAIIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FDE1429623E51B8E81A2BEA /* WebAIIntegration.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -65,6 +70,11 @@
 		AA45A7582909CA8597A5DCB8 /* TencentTranslateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TencentTranslateManager.swift; sourceTree = "<group>"; };
 		0042031FEA3536886421E167 /* AIModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIModelManager.swift; sourceTree = "<group>"; };
 		F60F1E307A9012E45D7F1A1F /* AIChatViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatViewController.swift; sourceTree = "<group>"; };
+		DCEF4EF4041D8861A4BA69EB /* MarkdownRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownRenderer.swift; sourceTree = "<group>"; };
+		07805AED947BDED432432552 /* ConversationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationManager.swift; sourceTree = "<group>"; };
+		936B6D26EAE1D51E3C34CD74 /* KnowledgeBaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeBaseManager.swift; sourceTree = "<group>"; };
+		C4041B4BB87B7D1986D47360 /* VoiceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceService.swift; sourceTree = "<group>"; };
+		6FDE1429623E51B8E81A2BEA /* WebAIIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebAIIntegration.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -107,6 +117,11 @@ APPPROXY_FRAMEWORKS /* Frameworks */ = {
 				TRANSLATE_REF /* TranslateManager.swift */,
 				AA45A7582909CA8597A5DCB8 /* TencentTranslateManager.swift */,
 				F60F1E307A9012E45D7F1A1F /* AIChatViewController.swift */,
+				6FDE1429623E51B8E81A2BEA /* WebAIIntegration.swift */,
+				C4041B4BB87B7D1986D47360 /* VoiceService.swift */,
+				936B6D26EAE1D51E3C34CD74 /* KnowledgeBaseManager.swift */,
+				07805AED947BDED432432552 /* ConversationManager.swift */,
+				DCEF4EF4041D8861A4BA69EB /* MarkdownRenderer.swift */,
 				0042031FEA3536886421E167 /* AIModelManager.swift */,
 				DICT_REF /* en_zh_dict.json */,
 				GITHUBDICT_REF /* github_dict.json */,
@@ -254,6 +269,11 @@ APPPROXY_TARGET /* AppProxyExtension */ = {
 				TRANSLATE_ID /* TranslateManager.swift in Sources */,
 				4476EC437D27CD122CB15084 /* TencentTranslateManager.swift in Sources */,
 				42271473979A300DC64B6422 /* AIChatViewController.swift in Sources */,
+				B68361E7DF22A8C85B09738B /* WebAIIntegration.swift in Sources */,
+				035F6F6EAFFBDAFDDD8B449E /* VoiceService.swift in Sources */,
+				B23DCAEA6C4093FE26B259F0 /* KnowledgeBaseManager.swift in Sources */,
+				AEF3F1E6488E8081F0A41B10 /* ConversationManager.swift in Sources */,
+				A414B481314CBECAF2B69FD3 /* MarkdownRenderer.swift in Sources */,
 				54696B23815689CEDCA60EF7 /* AIModelManager.swift in Sources */,
 				FOURLEVELCACHE_ID /* FourLevelCache.swift in Sources */,
 				SCENEDELEGATE_ID /* SceneDelegate.swift in Sources */,
