@@ -15,13 +15,16 @@ import EventKit
 import AppTrackingTransparency
 class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UIScrollViewDelegate, UITextFieldDelegate {
     // MARK: - 配置项
-    private var windowTitles: [String] = ["GitHub", "CF", "Google", "YouTube"]
+    private var windowTitles: [String] = ["GitHub", "CF", "Google", "AI"]
     private var windowURLs: [String] = [
         "https://github.com",
         "https://dash.cloudflare.com/",
         "https://www.google.com",
-        "https://www.youtube.com"
+        "about:blank"
     ]
+    /// AI 对话视图控制器（第4个标签）
+    private var aiChatVC: AIChatViewController?
+    private let aiTabIndex = 3
     /// 书签列表（长按GitHub收藏，长按CF打开）
     private var bookmarks: [String] = []
     private let bookmarksKey = "savedBookmarks"
@@ -332,7 +335,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             tabButtons[2].centerYAnchor.constraint(equalTo: tabBar.centerYAnchor),
             tabButtons[2].widthAnchor.constraint(equalToConstant: tabWidth),
             tabButtons[2].heightAnchor.constraint(equalToConstant: 24),
-            // 右1：YouTube
+            // 右1：AI
             tabButtons[3].trailingAnchor.constraint(equalTo: translateButton.leadingAnchor, constant: -2),
             tabButtons[3].centerYAnchor.constraint(equalTo: tabBar.centerYAnchor),
             tabButtons[3].widthAnchor.constraint(equalToConstant: tabWidth),
@@ -397,7 +400,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         case 0: saveBookmark()       // GitHub：收藏当前页面
         case 1: clearCurrentSiteCache() // CF：清除当前站点缓存
         case 2: manageWindows()      // Google：管理窗口配置
-        case 3: openBookmarks()      // YouTube：打开书签列表
+        case 3: openBookmarks()      // AI：打开书签列表
         default: break
         }
     }
@@ -505,8 +508,8 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             self.showToast("窗口配置已保存")
         })
         alert.addAction(UIAlertAction(title: "恢复默认", style: .destructive) { _ in
-            self.windowTitles = ["GitHub", "CF", "Google", "YouTube"]
-            self.windowURLs = ["https://github.com", "https://dash.cloudflare.com/", "https://www.google.com", "https://www.youtube.com"]
+            self.windowTitles = ["GitHub", "CF", "Google", "AI"]
+            self.windowURLs = ["https://github.com", "https://dash.cloudflare.com/", "https://www.google.com", "about:blank"]
             UserDefaults.standard.removeObject(forKey: self.customTitlesKey)
             UserDefaults.standard.removeObject(forKey: self.customURLsKey)
             for (i, btn) in self.tabButtons.enumerated() {
@@ -1090,6 +1093,12 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         guard let btn = gesture.view as? UIButton else { return }
         let index = btn.tag
         switchToTab(index: index)
+        if index == aiTabIndex {
+            // AI 标签双击：新建对话
+            NotificationCenter.default.post(name: NSNotification.Name("ClearAIChat"), object: nil)
+            showToast("已新建 AI 对话")
+            return
+        }
         guard let url = URL(string: windowURLs[index]) else { return }
         webViews[index].load(URLRequest(url: url))
         showToast("已返回\(windowTitles[index])主页")
@@ -1105,6 +1114,34 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
                 button.titleLabel?.font = .systemFont(ofSize: 10, weight: .regular)
             }
         }
+        // AI 标签特殊处理：显示 AIChatViewController，隐藏所有 webView
+        if index == aiTabIndex {
+            for webView in webViews {
+                webView.isHidden = true
+            }
+            if aiChatVC == nil {
+                aiChatVC = AIChatViewController()
+            }
+            if let aiVC = aiChatVC, aiVC.parent == nil {
+                addChild(aiVC)
+                aiVC.view.translatesAutoresizingMaskIntoConstraints = false
+                webViewContainer.addSubview(aiVC.view)
+                NSLayoutConstraint.activate([
+                    aiVC.view.topAnchor.constraint(equalTo: webViewContainer.topAnchor),
+                    aiVC.view.leadingAnchor.constraint(equalTo: webViewContainer.leadingAnchor),
+                    aiVC.view.trailingAnchor.constraint(equalTo: webViewContainer.trailingAnchor),
+                    aiVC.view.bottomAnchor.constraint(equalTo: webViewContainer.bottomAnchor),
+                ])
+                aiVC.didMove(toParent: self)
+            }
+            aiChatVC?.view.isHidden = false
+            updateProgressView()
+            updateTranslateButtonState()
+            urlTextField.text = "AI 对话"
+            return
+        }
+        // 普通标签：隐藏 AI 视图，显示对应 webView
+        aiChatVC?.view.isHidden = true
         for (i, webView) in webViews.enumerated() {
             webView.isHidden = (i != index)
         }
