@@ -308,10 +308,14 @@ class TranslateManager {
                     if (node.nodeType === 3) {
                         const text = node.textContent;
                         if (text && text.trim() && /[a-zA-Z]/.test(text)) {
-                            const newText = translateText(text);
-                            if (newText !== text) {
-                                node.textContent = newText;
-                                translatedCount++;
+                            // v16.11.8 防循环翻译：中文比例超过30%说明已翻译过
+                            const chineseCount = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+                            if (chineseCount <= text.length * 0.3) {
+                                const newText = translateText(text);
+                                if (newText !== text) {
+                                    node.textContent = newText;
+                                    translatedCount++;
+                                }
                             }
                         }
                         return;
@@ -431,6 +435,13 @@ class TranslateManager {
                                     if (node.nodeType === 3 && !isInBlacklist(node.parentElement)) {
                                         const text = node.textContent;
                                         if (text && text.trim() && /[a-zA-Z]/.test(text)) {
+                                            // v16.11.8 防循环翻译：中文比例超过30%说明已翻译过，跳过
+                                            const chineseCount = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+                                            if (chineseCount > text.length * 0.3) continue;
+                                            // 防循环：文本中包含重复的相同英文单词（如 GitHub GitHub），跳过
+                                            const words = text.toLowerCase().match(/\b[a-z]{3,}\b/g) || [];
+                                            const wordSet = new Set(words);
+                                            if (words.length > 3 && wordSet.size < words.length * 0.5) continue;
                                             const newText = translateText(text);
                                             if (newText !== text) {
                                                 node.textContent = newText;
