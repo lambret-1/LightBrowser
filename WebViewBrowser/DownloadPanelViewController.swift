@@ -43,13 +43,14 @@ class DownloadPanelViewController: UIViewController {
     }
     
     private func setupUI() {
-        view.backgroundColor = .systemBackground
+        // 深色主题
+        view.backgroundColor = UIColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1.0)
         view.layer.cornerRadius = 16
         view.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
         
         // 顶部把手
         let handle = UIView()
-        handle.backgroundColor = .systemGray4
+        handle.backgroundColor = UIColor(white: 0.3, alpha: 1.0)
         handle.layer.cornerRadius = 3
         handle.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(handle)
@@ -58,6 +59,7 @@ class DownloadPanelViewController: UIViewController {
         let titleLabel = UILabel()
         titleLabel.text = "下载内容"
         titleLabel.font = .systemFont(ofSize: 18, weight: .semibold)
+        titleLabel.textColor = .white
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(titleLabel)
         
@@ -65,6 +67,7 @@ class DownloadPanelViewController: UIViewController {
         editButton = UIButton(type: .system)
         editButton.setTitle("编辑", for: .normal)
         editButton.titleLabel?.font = .systemFont(ofSize: 16)
+        editButton.tintColor = .systemBlue
         editButton.translatesAutoresizingMaskIntoConstraints = false
         editButton.addTarget(self, action: #selector(toggleEdit), for: .touchUpInside)
         view.addSubview(editButton)
@@ -80,35 +83,47 @@ class DownloadPanelViewController: UIViewController {
         // 关闭按钮
         let closeBtn = UIButton(type: .system)
         closeBtn.setImage(UIImage(systemName: "xmark.circle.fill"), for: .normal)
-        closeBtn.tintColor = .systemGray3
+        closeBtn.tintColor = UIColor(white: 0.5, alpha: 1.0)
         closeBtn.translatesAutoresizingMaskIntoConstraints = false
         closeBtn.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
         view.addSubview(closeBtn)
         
-        // Segment
+        // Segment（深色样式）
         segmentControl = UISegmentedControl(items: ["进行中", "已完成"])
         segmentControl.selectedSegmentIndex = 0
         segmentControl.translatesAutoresizingMaskIntoConstraints = false
         segmentControl.addTarget(self, action: #selector(segmentChanged), for: .valueChanged)
+        if #available(iOS 13.0, *) {
+            segmentControl.backgroundColor = UIColor(white: 0.2, alpha: 1.0)
+            segmentControl.selectedSegmentTintColor = UIColor(white: 0.35, alpha: 1.0)
+            segmentControl.setTitleTextAttributes([.foregroundColor: UIColor.lightGray], for: .normal)
+            segmentControl.setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
+        }
         view.addSubview(segmentControl)
         
-        // 搜索栏
+        // 搜索栏（深色样式）
         searchBar = UISearchBar()
         searchBar.placeholder = "搜索下载文件"
         searchBar.searchBarStyle = .minimal
         searchBar.delegate = self
         searchBar.translatesAutoresizingMaskIntoConstraints = false
+        if #available(iOS 13.0, *) {
+            searchBar.searchTextField.textColor = .white
+            searchBar.searchTextField.backgroundColor = UIColor(white: 0.2, alpha: 1.0)
+            searchBar.searchTextField.attributedPlaceholder = NSAttributedString(string: "搜索下载文件", attributes: [.foregroundColor: UIColor.gray])
+        }
         view.addSubview(searchBar)
         
         // 筛选按钮
         filterButton = UIButton(type: .system)
         filterButton.setTitle("全部类型 ▾", for: .normal)
         filterButton.titleLabel?.font = .systemFont(ofSize: 14)
+        filterButton.tintColor = .systemBlue
         filterButton.translatesAutoresizingMaskIntoConstraints = false
         filterButton.addTarget(self, action: #selector(showFilterMenu), for: .touchUpInside)
         view.addSubview(filterButton)
         
-        // 表格
+        // 表格（深色样式）
         tableView = UITableView(frame: .zero, style: .plain)
         tableView.delegate = self
         tableView.dataSource = self
@@ -116,6 +131,11 @@ class DownloadPanelViewController: UIViewController {
         tableView.rowHeight = 70
         tableView.translatesAutoresizingMaskIntoConstraints = false
         tableView.allowsMultipleSelectionDuringEditing = true
+        tableView.backgroundColor = UIColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1.0)
+        tableView.separatorColor = UIColor(white: 0.2, alpha: 1.0)
+        if #available(iOS 13.0, *) {
+            tableView.indicatorStyle = .white
+        }
         view.addSubview(tableView)
         
         // 批量删除按钮（编辑模式显示）
@@ -349,6 +369,8 @@ class DownloadCell: UITableViewCell {
     required init?(coder: NSCoder) { fatalError() }
     
     private func setupUI() {
+        backgroundColor = UIColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1.0)
+        contentView.backgroundColor = UIColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1.0)
         iconView.contentMode = .scaleAspectFit
         iconView.tintColor = .systemBlue
         iconView.translatesAutoresizingMaskIntoConstraints = false
@@ -360,12 +382,12 @@ class DownloadCell: UITableViewCell {
         contentView.addSubview(nameLabel)
         
         detailLabel.font = .systemFont(ofSize: 12)
-        detailLabel.textColor = .secondaryLabel
+        detailLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
         detailLabel.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(detailLabel)
         
         progressView.progressTintColor = .systemBlue
-        progressView.trackTintColor = .systemGray5
+        progressView.trackTintColor = UIColor(white: 0.25, alpha: 1.0)
         progressView.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(progressView)
         
@@ -452,7 +474,7 @@ extension UITableView {
     func setEmptyMessage(_ message: String) {
         let label = UILabel(frame: CGRect(x: 0, y: 0, width: bounds.width, height: bounds.height))
         label.text = message
-        label.textColor = .secondaryLabel
+        label.textColor = UIColor(white: 0.5, alpha: 1.0)
         label.textAlignment = .center
         label.font = .systemFont(ofSize: 16)
         backgroundView = label

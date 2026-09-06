@@ -3591,116 +3591,37 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         }
     }
     
-    // MARK: - 下载确认条
+    // MARK: - 下载确认弹窗（深色样式，二次确认）
     func showDownloadConfirm(url: String, fileName: String) {
-        hideDownloadConfirm()
         pendingDownloadURL = url
         pendingDownloadName = fileName
-        
-        let bar = UIView()
-        bar.backgroundColor = .secondarySystemBackground
-        bar.layer.cornerRadius = 14
-        bar.layer.shadowColor = UIColor.black.cgColor
-        bar.layer.shadowOffset = CGSize(width: 0, height: -2)
-        bar.layer.shadowRadius = 10
-        bar.layer.shadowOpacity = 0.18
-        bar.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(bar)
-        confirmBar = bar
-        
-        let icon = UIImageView(image: UIImage(systemName: "arrow.down.circle.fill"))
-        icon.tintColor = .systemBlue
-        icon.translatesAutoresizingMaskIntoConstraints = false
-        bar.addSubview(icon)
-        
-        let nameLabel = UILabel()
-        nameLabel.text = fileName
-        nameLabel.font = .systemFont(ofSize: 14, weight: .semibold)
-        nameLabel.lineBreakMode = .byTruncatingMiddle
-        nameLabel.translatesAutoresizingMaskIntoConstraints = false
-        bar.addSubview(nameLabel)
-        
-        let pathLabel = UILabel()
-        pathLabel.text = "保存到：文件 App → 本应用 → Downloads"
-        pathLabel.font = .systemFont(ofSize: 11)
-        pathLabel.textColor = .secondaryLabel
-        pathLabel.translatesAutoresizingMaskIntoConstraints = false
-        bar.addSubview(pathLabel)
-        
-        let cancelBtn = UIButton(type: .system)
-        cancelBtn.setTitle("取消", for: .normal)
-        cancelBtn.titleLabel?.font = .systemFont(ofSize: 14, weight: .medium)
-        cancelBtn.tintColor = .systemGray
-        cancelBtn.translatesAutoresizingMaskIntoConstraints = false
-        cancelBtn.addTarget(self, action: #selector(cancelDownloadConfirm), for: .touchUpInside)
-        bar.addSubview(cancelBtn)
-        
-        let downloadBtn = UIButton(type: .system)
-        downloadBtn.setTitle("下载", for: .normal)
-        downloadBtn.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
-        downloadBtn.tintColor = .systemBlue
-        downloadBtn.translatesAutoresizingMaskIntoConstraints = false
-        downloadBtn.addTarget(self, action: #selector(confirmDownload), for: .touchUpInside)
-        bar.addSubview(downloadBtn)
-        
-        NSLayoutConstraint.activate([
-            bar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
-            bar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
-            bar.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
-            bar.heightAnchor.constraint(equalToConstant: 64),
-            
-            icon.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: 14),
-            icon.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
-            icon.widthAnchor.constraint(equalToConstant: 28),
-            icon.heightAnchor.constraint(equalToConstant: 28),
-            
-            nameLabel.topAnchor.constraint(equalTo: bar.topAnchor, constant: 8),
-            nameLabel.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 10),
-            nameLabel.trailingAnchor.constraint(equalTo: cancelBtn.leadingAnchor, constant: -8),
-            
-            pathLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 2),
-            pathLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
-            pathLabel.trailingAnchor.constraint(equalTo: nameLabel.trailingAnchor),
-            
-            cancelBtn.trailingAnchor.constraint(equalTo: downloadBtn.leadingAnchor, constant: -12),
-            cancelBtn.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
-            cancelBtn.widthAnchor.constraint(equalToConstant: 44),
-            
-            downloadBtn.trailingAnchor.constraint(equalTo: bar.trailingAnchor, constant: -14),
-            downloadBtn.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
-            downloadBtn.widthAnchor.constraint(equalToConstant: 44),
-        ])
-        
-        // 弹出动画
-        bar.transform = CGAffineTransform(translationX: 0, y: 80)
-        UIView.animate(withDuration: 0.3) {
-            bar.transform = .identity
+
+        let alert = UIAlertController(title: "下载确认", message: "文件名：\(fileName)\n\n保存位置：文件 App → 轻量浏览器 → Downloads", preferredStyle: .alert)
+        if #available(iOS 13.0, *) {
+            alert.view.backgroundColor = UIColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 1.0)
+            alert.view.tintColor = .systemBlue
         }
+        let downloadAction = UIAlertAction(title: "确认下载", style: .default) { [weak self] _ in
+            guard let self = self, let url = self.pendingDownloadURL, let name = self.pendingDownloadName else { return }
+            DownloadManager.shared.startDownload(url: url, fileName: name)
+            self.pendingDownloadURL = nil
+            self.pendingDownloadName = nil
+            self.showToast("开始下载：\(name)")
+        }
+        let cancelAction = UIAlertAction(title: "取消", style: .cancel) { [weak self] _ in
+            self?.pendingDownloadURL = nil
+            self?.pendingDownloadName = nil
+        }
+        alert.addAction(downloadAction)
+        alert.addAction(cancelAction)
+        present(alert, animated: true)
     }
-    
-    @objc private func cancelDownloadConfirm() {
-        hideDownloadConfirm()
-    }
-    
-    @objc private func confirmDownload() {
-        guard let url = pendingDownloadURL, let name = pendingDownloadName else { return }
-        DownloadManager.shared.startDownload(url: url, fileName: name)
-        hideDownloadConfirm()
-        showToast("开始下载：\(name)")
-    }
-    
+
     func hideDownloadConfirm() {
-        guard let bar = confirmBar else { return }
-        UIView.animate(withDuration: 0.2, animations: {
-            bar.transform = CGAffineTransform(translationX: 0, y: 80)
-        }) { _ in
-            bar.removeFromSuperview()
-        }
-        confirmBar = nil
         pendingDownloadURL = nil
         pendingDownloadName = nil
     }
-    
+        
     // MARK: - 下载链接判断
     func isDownloadURL(_ url: URL, mimeType: String?) -> Bool {
         let downloadExtensions = ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "zip", "rar", "7z", "mp3", "mp4", "mov", "avi", "mkv", "apk", "exe", "dmg", "pkg", "csv", "txt", "epub", "mobi"]
