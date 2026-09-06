@@ -51,6 +51,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     private var urlTextField: UITextField!
     private var webViews: [WKWebView] = []
     private var webViewContainer: UIView!
+    private var aiContainerView: UIView!
     private var progressView: UIProgressView!
     private var panGestures: [UIPanGestureRecognizer] = []
     // 右边缘下滑功能菜单
@@ -1119,7 +1120,9 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             for webView in webViews {
                 webView.isHidden = true
             }
-            // 延迟到下一个runloop创建，确保布局稳定，避免启动闪退
+            webViewContainer.isHidden = true
+            aiContainerView.isHidden = false
+            // 延迟到下一个runloop创建，确保布局稳定
             if aiChatVC == nil {
                 DispatchQueue.main.async { [weak self] in
                     guard let self = self else { return }
@@ -1128,27 +1131,25 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
                         self.aiChatVC = aiVC
                         self.addChild(aiVC)
                         aiVC.view.translatesAutoresizingMaskIntoConstraints = false
-                        self.webViewContainer.addSubview(aiVC.view)
+                        self.aiContainerView.addSubview(aiVC.view)
                         NSLayoutConstraint.activate([
-                            aiVC.view.topAnchor.constraint(equalTo: self.webViewContainer.topAnchor),
-                            aiVC.view.leadingAnchor.constraint(equalTo: self.webViewContainer.leadingAnchor),
-                            aiVC.view.trailingAnchor.constraint(equalTo: self.webViewContainer.trailingAnchor),
-                            aiVC.view.bottomAnchor.constraint(equalTo: self.webViewContainer.bottomAnchor),
+                            aiVC.view.topAnchor.constraint(equalTo: self.aiContainerView.topAnchor),
+                            aiVC.view.leadingAnchor.constraint(equalTo: self.aiContainerView.leadingAnchor),
+                            aiVC.view.trailingAnchor.constraint(equalTo: self.aiContainerView.trailingAnchor),
+                            aiVC.view.bottomAnchor.constraint(equalTo: self.aiContainerView.bottomAnchor),
                         ])
                         aiVC.didMove(toParent: self)
                     }
-                    self.aiChatVC?.view.isHidden = false
                 }
-            } else {
-                aiChatVC?.view.isHidden = false
             }
             updateProgressView()
             updateTranslateButtonState()
             urlTextField.text = "AI 对话"
             return
         }
-        // 普通标签：隐藏 AI 视图，显示对应 webView
-        aiChatVC?.view.isHidden = true
+        // 普通标签：隐藏 AI 容器，显示 webView
+        aiContainerView.isHidden = true
+        webViewContainer.isHidden = false
         for (i, webView) in webViews.enumerated() {
             webView.isHidden = (i != index)
         }
@@ -1172,6 +1173,17 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             webViewContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             webViewContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             webViewBottomConstraint
+        ])
+        // AI 对话独立容器（与 webViewContainer 同级，避免层级冲突）
+        aiContainerView = UIView()
+        aiContainerView.translatesAutoresizingMaskIntoConstraints = false
+        aiContainerView.isHidden = true
+        view.addSubview(aiContainerView)
+        NSLayoutConstraint.activate([
+            aiContainerView.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
+            aiContainerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            aiContainerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            aiContainerView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
     }
     private func setupWebViews() {
@@ -1232,22 +1244,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         compileAdBlockRules()
     }
     
-    /// 预创建AI对话视图（避免动态添加导致布局闪退）
-    private func setupAIChatView() {
-        let aiVC = AIChatViewController()
-        aiChatVC = aiVC
-        addChild(aiVC)
-        aiVC.view.translatesAutoresizingMaskIntoConstraints = false
-        aiVC.view.isHidden = true
-        webViewContainer.addSubview(aiVC.view)
-        NSLayoutConstraint.activate([
-            aiVC.view.topAnchor.constraint(equalTo: webViewContainer.topAnchor),
-            aiVC.view.leadingAnchor.constraint(equalTo: webViewContainer.leadingAnchor),
-            aiVC.view.trailingAnchor.constraint(equalTo: webViewContainer.trailingAnchor),
-            aiVC.view.bottomAnchor.constraint(equalTo: webViewContainer.bottomAnchor),
-        ])
-        aiVC.didMove(toParent: self)
-    }
     /// 自定义下拉刷新（触发距离120pt，避免误触）
     private func setupCustomRefresh(for webView: WKWebView, index: Int) {
         let refreshView = UIView(frame: CGRect(x: 0, y: -60, width: UIScreen.main.bounds.width, height: 60))
@@ -2476,13 +2472,17 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     
     // MARK: - 手势导航
     private func setupGestures() {
-        for webView in webViews {
-            let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
-            pan.delegate = self
-            pan.cancelsTouchesInView = false
-            webView.addGestureRecognizer(pan)
-            panGestures.append(pan)
-        }
+        // 左边缘右滑→返回，右边缘左滑→前进（与Safari一致，60pt/0.7s阈值）
+        let leftEdgePan = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(handleEdgeNavigation(_:)))
+        leftEdgePan.edges = .left
+        leftEdgePan.delegate = self
+        view.addGestureRecognizer(leftEdgePan)
+        
+        let rightEdgePan = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(handleEdgeNavigation(_:)))
+        rightEdgePan.edges = .right
+        rightEdgePan.delegate = self
+        view.addGestureRecognizer(rightEdgePan)
+        
         // 双击左下角→底部，双击右下角→顶部
         let screenDoubleTap = UITapGestureRecognizer(target: self, action: #selector(handleScreenDoubleTap(_:)))
         screenDoubleTap.numberOfTapsRequired = 2
@@ -3769,43 +3769,34 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         }
     }
 
-    @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
-        guard gesture.view === currentWebView else { return }
+    // MARK: - 边缘滑动导航（左边缘右滑返回，右边缘左滑前进）
+    @objc private func handleEdgeNavigation(_ gesture: UIScreenEdgePanGestureRecognizer) {
+        // AI标签页不响应边缘导航
+        guard activeIndex != aiTabIndex else { return }
         let translation = gesture.translation(in: view)
-        let screenWidth = view.bounds.width
-        let threshold = screenWidth * 0.3 // 拖拽30%触发前进/后退
+        let velocity = gesture.velocity(in: view)
+        let threshold: CGFloat = 60
+        let velocityThreshold: CGFloat = 500 // 0.7s内滑动超过约350pt即触发
         
         switch gesture.state {
-        case .began:
-            gestureStartPoint = gesture.location(in: view)
-        case .changed:
-            // 跟手：页面跟随手指水平平移
-            let dx = translation.x
-            if abs(dx) > abs(translation.y) * 1.2 {
-                let limitedDx = max(-screenWidth * 0.3, min(screenWidth * 0.3, dx))
-                currentWebView.transform = CGAffineTransform(translationX: limitedDx, y: 0)
-            }
         case .ended:
             let dx = translation.x
-            // 回弹动画
-            UIView.animate(withDuration: 0.25, delay: 0, usingSpringWithDamping: 0.8, initialSpringVelocity: 0.5, options: .curveEaseOut) {
-                self.currentWebView.transform = .identity
-            }
-            // 右滑（手指从左往右）→ 网页后退
-            if dx > threshold {
-                if currentWebView.canGoBack {
-                    currentWebView.goBack()
+            let speed = velocity.x
+            // 左边缘手势：向右滑→返回
+            if gesture.edges == .left {
+                if dx > threshold || speed > velocityThreshold {
+                    if currentWebView.canGoBack {
+                        currentWebView.goBack()
+                    }
                 }
             }
-            // 左滑（手指从右往左）→ 网页前进
-            else if dx < -threshold {
-                if currentWebView.canGoForward {
-                    currentWebView.goForward()
+            // 右边缘手势：向左滑→前进
+            else if gesture.edges == .right {
+                if dx < -threshold || speed < -velocityThreshold {
+                    if currentWebView.canGoForward {
+                        currentWebView.goForward()
+                    }
                 }
-            }
-        case .cancelled:
-            UIView.animate(withDuration: 0.25) {
-                self.currentWebView.transform = .identity
             }
         default:
             break
@@ -4443,6 +4434,10 @@ extension ViewController: UIGestureRecognizerDelegate {
         return true
     }
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        // 边缘导航手势直接允许
+        if gestureRecognizer is UIScreenEdgePanGestureRecognizer {
+            return true
+        }
         guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
         let location = pan.location(in: view)
         let velocity = pan.velocity(in: view)
@@ -4451,8 +4446,8 @@ extension ViewController: UIGestureRecognizerDelegate {
         if isRightEdge && velocity.y > 100 {
             return true
         }
-        // 普通水平滑动手势（前进/后退）
-        return abs(velocity.x) > abs(velocity.y) * 1.2
+        // 其他pan手势（如功能菜单）
+        return true
     }
     // MARK: - 下载文件夹管理
     private func createDownloadsFolder() {
