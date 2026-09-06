@@ -379,7 +379,7 @@ class AIChatViewController: UIViewController {
         let model = manager.currentModel
         var queryText = text
         if kbManager.totalDocuments > 0 {
-            queryText = kbManager.buildPromptWithKnowledge(text)
+            queryText = kbManager.buildPromptWithKnowledge(query: text)
         }
         
         var messagesForAPI = messages
@@ -917,4 +917,253 @@ class AILoadingCell: UITableViewCell {
         ])
     }
     required init?(coder: NSCoder) { fatalError() }
+}
+
+// MARK: - 设置页面代理协议
+protocol AISettingsDelegate: AnyObject {
+    func didUpdateSettings()
+}
+
+// MARK: - AI 设置页面
+class AISettingsViewController: UIViewController {
+    weak var delegate: AISettingsDelegate?
+    private var tableView: UITableView!
+    private var configs: [APIConfig] = []
+    private var params: ChatParams!
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "AI 设置"
+        view.backgroundColor = .systemGroupedBackground
+        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(doneTapped))
+        
+        configs = AIModelManager.shared.loadConfigs()
+        params = AIModelManager.shared.loadParams()
+        
+        tableView = UITableView(frame: view.bounds, style: .insetGrouped)
+        tableView.translatesAutoresizingMaskIntoConstraints = false
+        tableView.delegate = self
+        tableView.dataSource = self
+        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "Cell")
+        view.addSubview(tableView)
+        
+        NSLayoutConstraint.activate([
+            tableView.topAnchor.constraint(equalTo: view.topAnchor),
+            tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+    }
+    
+    @objc private func doneTapped() {
+        delegate?.didUpdateSettings()
+        dismiss(animated: true)
+    }
+    
+    private func reloadData() {
+        configs = AIModelManager.shared.loadConfigs()
+        tableView.reloadData()
+    }
+    
+    private func showToast(_ message: String) {
+        let toast = UIAlertController(title: nil, message: message, preferredStyle: .alert)
+        present(toast, animated: true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { toast.dismiss(animated: true) }
+    }
+}
+
+extension AISettingsViewController: UITableViewDelegate, UITableViewDataSource {
+    func numberOfSections(in tableView: UITableView) -> Int { return 4 }
+    
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        switch section {
+        case 0: return configs.count + 1
+        case 1: return 3
+        case 2: return 1
+        case 3: return 1
+        default: return 0
+        }
+    }
+    
+    func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        switch section {
+        case 0: return "API 接口管理"
+        case 1: return "对话参数"
+        case 2: return "系统提示词"
+        case 3: return "其他"
+        default: return nil
+        }
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath)
+        cell.accessoryType = .none
+        cell.textLabel?.font = .systemFont(ofSize: 15)
+        
+        switch indexPath.section {
+        case 0:
+            if indexPath.row < configs.count {
+                let config = configs[indexPath.row]
+                cell.textLabel?.text = config.name
+                cell.detailTextLabel?.text = config.isDefault ? "默认 · \(config.baseURL)" : config.baseURL
+                cell.accessoryType = config.isDefault ? .checkmark : .disclosureIndicator
+            } else {
+                cell.textLabel?.text = "＋ 添加 API 配置"
+                cell.textLabel?.textColor = .systemBlue
+            }
+        case 1:
+            switch indexPath.row {
+            case 0:
+                cell.textLabel?.text = "Temperature"
+                cell.detailTextLabel?.text = String(format: "%.1f", params.temperature)
+            case 1:
+                cell.textLabel?.text = "Max Tokens"
+                cell.detailTextLabel?.text = "\(params.maxTokens)"
+            case 2:
+                cell.textLabel?.text = "Top P"
+                cell.detailTextLabel?.text = String(format: "%.1f", params.topP)
+            default: break
+            }
+            cell.accessoryType = .disclosureIndicator
+        case 2:
+            cell.textLabel?.text = "系统提示词"
+            cell.detailTextLabel?.text = params.systemPrompt
+            cell.accessoryType = .disclosureIndicator
+        case 3:
+            cell.textLabel?.text = "清空对话记录"
+            cell.textLabel?.textColor = .systemRed
+        default: break
+        }
+        return cell
+    }
+    
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+        switch indexPath.section {
+        case 0:
+            if indexPath.row < configs.count {
+                editConfig(configs[indexPath.row])
+            } else {
+                addConfig()
+            }
+        case 1:
+            editParam(at: indexPath.row)
+        case 2:
+            editSystemPrompt()
+        case 3:
+            NotificationCenter.default.post(name: NSNotification.Name("ClearAIChat"), object: nil)
+            showToast("对话已清空")
+        default: break
+        }
+    }
+    
+    func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
+        return indexPath.section == 0 && indexPath.row < configs.count
+    }
+    
+    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
+        if editingStyle == .delete {
+            AIModelManager.shared.deleteConfig(configs[indexPath.row])
+            reloadData()
+        }
+    }
+    
+    private func addConfig() {
+        let alert = UIAlertController(title: "选择厂商", message: nil, preferredStyle: .actionSheet)
+        for template in AIModelManager.presetTemplates {
+            alert.addAction(UIAlertAction(title: template.name, style: .default) { _ in
+                self.showConfigEditor(name: template.name, baseURL: template.baseURL, apiKey: "", models: [], isNew: true)
+            })
+        }
+        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+        present(alert, animated: true)
+    }
+    
+    private func editConfig(_ config: APIConfig) {
+        showConfigEditor(name: config.name, baseURL: config.baseURL, apiKey: config.apiKey, models: config.models, isNew: false, config: config)
+    }
+    
+    private func showConfigEditor(name: String, baseURL: String, apiKey: String, models: [String], isNew: Bool, config: APIConfig? = nil) {
+        let alert = UIAlertController(title: isNew ? "添加 API 配置" : "编辑配置", message: nil, preferredStyle: .alert)
+        alert.addTextField { $0.placeholder = "配置名称"; $0.text = name }
+        alert.addTextField { $0.placeholder = "API 地址"; $0.text = baseURL }
+        alert.addTextField { $0.placeholder = "API Key"; $0.text = apiKey; $0.isSecureTextEntry = true }
+        alert.addTextField { $0.placeholder = "模型列表（逗号分隔，留空自动获取）"; $0.text = models.joined(separator: ",") }
+        
+        alert.addAction(UIAlertAction(title: "保存", style: .default) { _ in
+            let name = alert.textFields?[0].text?.trimmingCharacters(in: .whitespaces) ?? ""
+            let baseURL = alert.textFields?[1].text?.trimmingCharacters(in: .whitespaces) ?? ""
+            let apiKey = alert.textFields?[2].text?.trimmingCharacters(in: .whitespaces) ?? ""
+            let modelsStr = alert.textFields?[3].text?.trimmingCharacters(in: .whitespaces) ?? ""
+            let models = modelsStr.isEmpty ? [] : modelsStr.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            
+            if isNew {
+                let newConfig = APIConfig(id: UUID().uuidString, name: name, baseURL: baseURL, apiKey: apiKey, models: models, isDefault: self.configs.isEmpty)
+                AIModelManager.shared.addConfig(newConfig)
+            } else if var config = config {
+                config.name = name
+                config.baseURL = baseURL
+                config.apiKey = apiKey
+                config.models = models
+                AIModelManager.shared.updateConfig(config)
+            }
+            self.reloadData()
+        })
+        
+        if let config = config {
+            alert.addAction(UIAlertAction(title: "设为默认", style: .default) { _ in
+                var updated = config
+                updated.isDefault = true
+                AIModelManager.shared.updateConfig(updated)
+                self.reloadData()
+            })
+            alert.addAction(UIAlertAction(title: "获取模型列表", style: .default) { _ in
+                AIModelManager.shared.fetchModels(for: config) { models, error in
+                    if let models = models {
+                        var updated = config
+                        updated.models = models
+                        AIModelManager.shared.updateConfig(updated)
+                        self.reloadData()
+                        self.showToast("已获取 \(models.count) 个模型")
+                    } else {
+                        self.showToast("获取失败：\(error?.localizedDescription ?? "未知错误")")
+                    }
+                }
+            })
+        }
+        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+        present(alert, animated: true)
+    }
+    
+    private func editParam(at row: Int) {
+        let titles = ["Temperature", "Max Tokens", "Top P"]
+        let currentValues = [String(format: "%.1f", params.temperature), "\(params.maxTokens)", String(format: "%.1f", params.topP)]
+        let alert = UIAlertController(title: titles[row], message: nil, preferredStyle: .alert)
+        alert.addTextField { $0.text = currentValues[row]; $0.keyboardType = .decimalPad }
+        alert.addAction(UIAlertAction(title: "保存", style: .default) { _ in
+            let value = alert.textFields?[0].text ?? ""
+            switch row {
+            case 0: if let v = Double(value) { self.params.temperature = max(0, min(2, v)) }
+            case 1: if let v = Int(value) { self.params.maxTokens = max(1, min(32768, v)) }
+            case 2: if let v = Double(value) { self.params.topP = max(0, min(1, v)) }
+            default: break
+            }
+            AIModelManager.shared.saveParams(self.params)
+            self.tableView.reloadData()
+        })
+        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+        present(alert, animated: true)
+    }
+    
+    private func editSystemPrompt() {
+        let alert = UIAlertController(title: "系统提示词", message: nil, preferredStyle: .alert)
+        alert.addTextField { $0.text = self.params.systemPrompt }
+        alert.addAction(UIAlertAction(title: "保存", style: .default) { _ in
+            self.params.systemPrompt = alert.textFields?[0].text ?? ""
+            AIModelManager.shared.saveParams(self.params)
+            self.tableView.reloadData()
+        })
+        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+        present(alert, animated: true)
+    }
 }
