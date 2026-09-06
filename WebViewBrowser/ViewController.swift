@@ -51,7 +51,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     private var urlTextField: UITextField!
     private var webViews: [WKWebView] = []
     private var webViewContainer: UIView!
-    private var aiContainerView: UIView!
+    private var aiOverlayView: UIView!
     private var progressView: UIProgressView!
     private var panGestures: [UIPanGestureRecognizer] = []
     // 右边缘下滑功能菜单
@@ -1115,14 +1115,11 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
                 button.titleLabel?.font = .systemFont(ofSize: 10, weight: .regular)
             }
         }
-        // AI 标签特殊处理：显示 AIChatViewController，隐藏所有 webView
+        // AI 标签：显示独立覆盖窗口，完全脱离 WebView 容器
         if index == aiTabIndex {
-            for webView in webViews {
-                webView.isHidden = true
-            }
-            webViewContainer.isHidden = true
-            aiContainerView.isHidden = false
-            // 延迟到下一个runloop创建，确保布局稳定
+            aiOverlayView.isHidden = false
+            view.bringSubviewToFront(aiOverlayView)
+            // 延迟创建 AIChatViewController，确保布局稳定
             if aiChatVC == nil {
                 DispatchQueue.main.async { [weak self] in
                     guard let self = self else { return }
@@ -1131,12 +1128,12 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
                         self.aiChatVC = aiVC
                         self.addChild(aiVC)
                         aiVC.view.translatesAutoresizingMaskIntoConstraints = false
-                        self.aiContainerView.addSubview(aiVC.view)
+                        self.aiOverlayView.addSubview(aiVC.view)
                         NSLayoutConstraint.activate([
-                            aiVC.view.topAnchor.constraint(equalTo: self.aiContainerView.topAnchor),
-                            aiVC.view.leadingAnchor.constraint(equalTo: self.aiContainerView.leadingAnchor),
-                            aiVC.view.trailingAnchor.constraint(equalTo: self.aiContainerView.trailingAnchor),
-                            aiVC.view.bottomAnchor.constraint(equalTo: self.aiContainerView.bottomAnchor),
+                            aiVC.view.topAnchor.constraint(equalTo: self.aiOverlayView.topAnchor),
+                            aiVC.view.leadingAnchor.constraint(equalTo: self.aiOverlayView.leadingAnchor),
+                            aiVC.view.trailingAnchor.constraint(equalTo: self.aiOverlayView.trailingAnchor),
+                            aiVC.view.bottomAnchor.constraint(equalTo: self.aiOverlayView.bottomAnchor),
                         ])
                         aiVC.didMove(toParent: self)
                     }
@@ -1147,9 +1144,8 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             urlTextField.text = "AI 对话"
             return
         }
-        // 普通标签：隐藏 AI 容器，显示 webView
-        aiContainerView.isHidden = true
-        webViewContainer.isHidden = false
+        // 普通标签：隐藏 AI 覆盖窗口，显示 webView
+        aiOverlayView.isHidden = true
         for (i, webView) in webViews.enumerated() {
             webView.isHidden = (i != index)
         }
@@ -1174,16 +1170,18 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             webViewContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             webViewBottomConstraint
         ])
-        // AI 对话独立容器（与 webViewContainer 同级，避免层级冲突）
-        aiContainerView = UIView()
-        aiContainerView.translatesAutoresizingMaskIntoConstraints = false
-        aiContainerView.isHidden = true
-        view.addSubview(aiContainerView)
+        // AI 对话独立覆盖窗口（最上层，遮挡浏览器但不遮挡顶部工具栏）
+        aiOverlayView = UIView()
+        aiOverlayView.translatesAutoresizingMaskIntoConstraints = false
+        aiOverlayView.backgroundColor = .systemBackground
+        aiOverlayView.isHidden = true
+        view.addSubview(aiOverlayView)
+        view.bringSubviewToFront(aiOverlayView)
         NSLayoutConstraint.activate([
-            aiContainerView.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
-            aiContainerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            aiContainerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            aiContainerView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            aiOverlayView.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
+            aiOverlayView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            aiOverlayView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            aiOverlayView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
     }
     private func setupWebViews() {
