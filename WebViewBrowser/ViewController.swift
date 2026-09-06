@@ -2221,9 +2221,15 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             self.setAsDefaultBrowser()
         })
         
-        // 翻译模式
+        // 翻译模式（v16.11.9 支持三种模式显示）
         let currentMode = TranslateManager.shared.currentMode
-        let modeText = currentMode == .mixed ? "混合（文字离线+图片在线）" : (currentMode == .local ? "本地翻译（仅离线词库）" : "传统在线翻译")
+        let modeText: String
+        switch currentMode {
+        case .mixed: modeText = "混合（文字离线+图片在线）"
+        case .online: modeText = "传统在线翻译"
+        case .autoEnhanced: modeText = "自动翻译增强"
+        default: modeText = "混合（文字离线+图片在线）"
+        }
         alert.addAction(UIAlertAction(title: "🌍 翻译模式（当前：\(modeText)）", style: .default) { _ in
             self.showTranslateModeSelector()
         })
@@ -2247,14 +2253,9 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         present(alert, animated: true)
     }
     
-    // MARK: - 翻译模式选择
+    // MARK: - 翻译模式选择（v16.11.9 移除本地翻译）
     private func showTranslateModeSelector() {
-        let alert = UIAlertController(title: "选择翻译模式", message: "本地翻译：仅使用内置离线词库（无需网络）\n混合翻译：文字优先离线，失败自动降级在线\n在线翻译：完全使用百度在线翻译", preferredStyle: .actionSheet)
-        
-        alert.addAction(UIAlertAction(title: "📱 本地翻译（仅离线词库）", style: .default) { _ in
-            TranslateManager.shared.setMode(.local)
-            self.showToast("已切换为本地翻译模式")
-        })
+        let alert = UIAlertController(title: "选择翻译模式", message: "混合翻译：文字优先离线，失败自动降级在线\n在线翻译：完全使用百度在线翻译\n自动翻译增强：UI离线+长文本在线兜底", preferredStyle: .actionSheet)
         
         alert.addAction(UIAlertAction(title: "🔀 混合翻译（推荐）", style: .default) { _ in
             TranslateManager.shared.setMode(.mixed)
@@ -2264,6 +2265,11 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         alert.addAction(UIAlertAction(title: "🌐 传统在线翻译", style: .default) { _ in
             TranslateManager.shared.setMode(.online)
             self.showToast("已切换为传统在线翻译模式")
+        })
+        
+        alert.addAction(UIAlertAction(title: "⚡ 自动翻译增强", style: .default) { _ in
+            TranslateManager.shared.setMode(.autoEnhanced)
+            self.showToast("已切换为自动翻译增强模式")
         })
         
         alert.addAction(UIAlertAction(title: "🗑 清空翻译缓存", style: .destructive) { _ in
@@ -2469,22 +2475,20 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     @objc private func handleTranslateLongPress(_ gesture: UILongPressGestureRecognizer) {
         guard gesture.state == .began else { return }
         let alert = UIAlertController(title: "翻译模式 & 浏览器设置", message: nil, preferredStyle: .actionSheet)
-        // 翻译模式切换
+        // 翻译模式切换（v16.11.9 移除本地翻译和自动翻译，保留在线/混合/自动增强）
         let currentMode = TranslateManager.shared.currentMode
         let modeNames: [TranslateManager.TranslateMode: String] = [
-            .local: "本地翻译（仅离线词库）",
             .online: "在线翻译（百度接口）",
             .mixed: "混合翻译（推荐）",
-            .alwaysOn: "自动翻译（纯离线+动态监听）",
             .autoEnhanced: "自动翻译增强（UI离线+长文本在线兜底）"
         ]
-        for mode in [TranslateManager.TranslateMode.local, .online, .mixed, .alwaysOn, .autoEnhanced] {
+        for mode in [TranslateManager.TranslateMode.online, .mixed, .autoEnhanced] {
             let isSelected = mode == currentMode
             let title = isSelected ? "✓ \(modeNames[mode] ?? "")" : (modeNames[mode] ?? "")
             alert.addAction(UIAlertAction(title: title, style: .default) { _ in
                 TranslateManager.shared.setMode(mode)
                 self.showToast("已切换为：\(modeNames[mode] ?? "")")
-                if mode == .alwaysOn || mode == .autoEnhanced {
+                if mode == .autoEnhanced {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         self.autoTranslateIfNeeded()
                     }

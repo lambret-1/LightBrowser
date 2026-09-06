@@ -28,6 +28,45 @@ jobs:
       - name: 创建日志目录
         run: mkdir -p error-logs
 
+      # 2.5 Swift字符串转义检查（防止JavaScript转义序列未转义导致编译失败）
+      - name: Swift字符串转义检查
+        run: |
+          echo "=== 检查Swift字符串中未转义的JavaScript转义序列 ==="
+          ERROR_COUNT=0
+          # 检查所有.swift文件
+          for file in $(find . -name "*.swift" -type f); do
+            # 检测未转义的 \uXXXX (JavaScript Unicode转义)
+            # 排除 \\u (已转义) 和 Swift字符串插值 \(
+            MATCHES=$(grep -nP '(?<!\\)\\u[0-9a-fA-F]{4}' "$file" 2>/dev/null || true)
+            if [ -n "$MATCHES" ]; then
+              echo "❌ $file 发现未转义的 \\u 转义:"
+              echo "$MATCHES"
+              ERROR_COUNT=$((ERROR_COUNT + 1))
+            fi
+            # 检测未转义的 \b \f \v \0 \x (JavaScript转义)
+            for seq in b f v 0 x; do
+              MATCHES=$(grep -nP "(?<!\\\\)\\\\$seq(?![a-zA-Z0-9])" "$file" 2>/dev/null || true)
+              if [ -n "$MATCHES" ]; then
+                echo "❌ $file 发现未转义的 \\$seq 转义:"
+                echo "$MATCHES"
+                ERROR_COUNT=$((ERROR_COUNT + 1))
+              fi
+            done
+          done
+          if [ $ERROR_COUNT -gt 0 ]; then
+            echo ""
+            echo "========================================"
+            echo "发现 $ERROR_COUNT 处转义错误！"
+            echo "修复方法：在Swift字符串中，JavaScript转义序列需要双写反斜杠"
+            echo "  \\u4e00  →  \\\\u4e00"
+            echo "  \\b      →  \\\\b"
+            echo "  \\x20    →  \\\\x20"
+            echo "========================================"
+            exit 1
+          else
+            echo "✅ 所有.swift文件转义检查通过"
+          fi
+
       # 3. 设置 Xcode 环境
       - name: 选择 Xcode 版本
         run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer

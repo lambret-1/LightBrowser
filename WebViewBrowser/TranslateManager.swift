@@ -65,7 +65,13 @@ class TranslateManager {
 
     var currentMode: TranslateMode {
         let mode = UserDefaults.standard.string(forKey: "translateMode") ?? "mixed"
-        return TranslateMode(rawValue: mode) ?? .mixed
+        let parsed = TranslateMode(rawValue: mode) ?? .mixed
+        // v16.11.9 兼容：已移除的模式自动切换为混合翻译
+        if parsed == .local || parsed == .alwaysOn {
+            UserDefaults.standard.set(TranslateMode.mixed.rawValue, forKey: "translateMode")
+            return .mixed
+        }
+        return parsed
     }
 
     func setMode(_ mode: TranslateMode) {
