@@ -19,10 +19,56 @@ struct ChatMessage: Codable, Equatable {
     var role: String    // user / assistant / system
     var content: String
     var timestamp: TimeInterval
+    var thinkingContent: String?  // 思考过程（可折叠）
+    
+    init(role: String, content: String, timestamp: TimeInterval, thinkingContent: String? = nil) {
+        self.role = role
+        self.content = content
+        self.timestamp = timestamp
+        self.thinkingContent = thinkingContent
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case role, content, timestamp, thinkingContent
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        role = try container.decode(String.self, forKey: .role)
+        content = try container.decode(String.self, forKey: .content)
+        timestamp = try container.decode(TimeInterval.self, forKey: .timestamp)
+        thinkingContent = try container.decodeIfPresent(String.self, forKey: .thinkingContent)
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(role, forKey: .role)
+        try container.encode(content, forKey: .content)
+        try container.encode(timestamp, forKey: .timestamp)
+        try container.encodeIfPresent(thinkingContent, forKey: .thinkingContent)
+    }
     
     static func == (lhs: ChatMessage, rhs: ChatMessage) -> Bool {
         return lhs.timestamp == rhs.timestamp && lhs.role == rhs.role
     }
+}
+
+// MARK: - 角色预设
+struct AIRole: Codable, Equatable {
+    var name: String
+    var prompt: String
+    var icon: String
+    
+    static let presets: [AIRole] = [
+        AIRole(name: "默认助手", prompt: "你是一个有帮助的AI助手。", icon: "sparkles"),
+        AIRole(name: "iOS浏览器高级开发工程师", prompt: "你是一位资深iOS浏览器高级开发工程师，精通WKWebView、Swift、UIKit、网络协议、性能优化、JavaScript桥接、缓存机制、手势交互等。回答时给出具体代码实现和技术原理，优先考虑iOS 14+兼容性和性能优化。", icon: "iphone"),
+        AIRole(name: "代码审查员", prompt: "你是一位严格的代码审查员，擅长发现代码中的bug、安全漏洞、性能问题和代码规范问题。回答时按严重程度分类，给出具体修改建议。", icon: "eye"),
+        AIRole(name: "翻译官", prompt: "你是一位专业翻译官，精通中英互译。翻译时保持原文语气和格式，专业术语准确，必要时补充注释说明。", icon: "character.bubble"),
+        AIRole(name: "写作助手", prompt: "你是一位写作助手，擅长文章润色、结构优化、表达提升。回答时给出修改后的完整文本，并说明修改理由。", icon: "pencil"),
+        AIRole(name: "Shell脚本专家", prompt: "你是一位Shell脚本专家，精通bash、awk、sed、grep等工具。回答时给出可直接运行的脚本，并解释关键逻辑。", icon: "terminal"),
+        AIRole(name: "网络协议专家", prompt: "你是一位网络协议专家，精通HTTP/HTTPS、WebSocket、TCP/UDP、DNS、CDN、代理协议等。回答时结合协议原理和实际场景分析。", icon: "network"),
+        AIRole(name: "自定义", prompt: "", icon: "slider.horizontal.3"),
+    ]
 }
 
 // MARK: - 对话参数
@@ -41,6 +87,62 @@ class AIModelManager {
     private let paramsKey = "ai_chat_params"
     private let currentConfigKey = "ai_current_config_id"
     private let currentModelKey = "ai_current_model"
+    private let currentRoleKey = "ai_current_role_name"
+    
+    /// 当前角色
+    var currentRole: AIRole {
+        get {
+            if let name = UserDefaults.standard.string(forKey: currentRoleKey),
+               let role = AIRole.presets.first(where: { $0.name == name }) {
+                return role
+            }
+            return AIRole.presets[0]
+        }
+        set {
+            UserDefaults.standard.set(newValue.name, forKey: currentRoleKey)
+        }
+    }
+    
+    /// 从AI回复中解析思考过程（支持 <think>...</think> 和 思考过程：... 等格式）
+    static func parseThinking(from text: String) -> (thinking: String, content: String) {
+        var remaining = text
+        var thinking = ""
+        
+        // 格式1: <think>...</think>
+        if let thinkStart = remaining.range(of: "<think>"),
+           let thinkEnd = remaining.range(of: "</think>") {
+            thinking = String(remaining[thinkStart.upperBound..<thinkEnd.lowerBound])
+            remaining = String(remaining[..<thinkStart.lowerBound]) + String(remaining[thinkEnd.upperBound...])
+        }
+        // 格式2: 【思考过程】...【/思考过程】
+        else if let thinkStart = remaining.range(of: "【思考过程】"),
+                let thinkEnd = remaining.range(of: "【/思考过程】") {
+            thinking = String(remaining[thinkStart.upperBound..<thinkEnd.lowerBound])
+            remaining = String(remaining[..<thinkStart.lowerBound]) + String(remaining[thinkEnd.upperBound...])
+        }
+        // 格式3: 以 "思考过程：" 开头，到第一个空行结束
+        else if remaining.hasPrefix("思考过程：") || remaining.hasPrefix("思考过程:") {
+            let lines = remaining.components(separatedBy: "\n")
+            var thinkLines: [String] = []
+            var contentLines: [String] = []
+            var inThinking = true
+            for line in lines {
+                if inThinking {
+                    if line.trimmingCharacters(in: .whitespaces).isEmpty && !thinkLines.isEmpty {
+                        inThinking = false
+                    } else {
+                        thinkLines.append(line)
+                    }
+                } else {
+                    contentLines.append(line)
+                }
+            }
+            thinking = thinkLines.joined(separator: "\n")
+            remaining = contentLines.joined(separator: "\n")
+        }
+        
+        return (thinking.trimmingCharacters(in: .whitespacesAndNewlines), remaining.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
     
     private init() {
         // 首次启动时添加默认配置

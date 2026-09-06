@@ -29,6 +29,7 @@ class AIChatViewController: UIViewController {
     private var messages: [ChatMessage] = []
     private var isStreaming = false
     private var streamingMessageIndex = -1
+    private var expandedThinkingIndices = Set<Int>()
     private let manager = AIModelManager.shared
     private let convManager = ConversationManager.shared
     private let voiceService = VoiceService.shared
@@ -79,7 +80,10 @@ class AIChatViewController: UIViewController {
         titleLabel.font = .systemFont(ofSize: 16, weight: .semibold)
         titleLabel.textAlignment = .center
         titleLabel.isUserInteractionEnabled = true
-        titleLabel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(renameTapped)))
+        titleLabel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(roleTapped)))
+        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(renameTapped))
+        longPress.minimumPressDuration = 0.6
+        titleLabel.addGestureRecognizer(longPress)
         topBar.addSubview(titleLabel)
         
         modelButton = UIButton(type: .system)
@@ -407,13 +411,17 @@ class AIChatViewController: UIViewController {
                 let idx = self.streamingMessageIndex
                 if idx >= 0 && idx < self.messages.count {
                     if let response = response {
-                        self.messages[idx].content = response
+                        // 解析思考过程
+                        let parsed = AIModelManager.parseThinking(from: response)
+                        self.messages[idx].content = parsed.content
+                        self.messages[idx].thinkingContent = parsed.thinking.isEmpty ? nil : parsed.thinking
                     } else if let error = error {
                         self.messages[idx].content = "❌ 请求失败：\(error.localizedDescription)"
                     }
+                    // 只刷新单行，避免长文本全量reloadData导致闪退
+                    self.tableView.reloadRows(at: [IndexPath(row: idx, section: 0)], with: .none)
                 }
                 self.streamingMessageIndex = -1
-                self.tableView.reloadData()
                 self.saveConversation()
                 self.manager.recordTokens(self.messages.reduce(0) { $0 + $1.content.count / 4 })
             }
@@ -481,13 +489,15 @@ class AIChatViewController: UIViewController {
                 let idx = self.streamingMessageIndex
                 if idx >= 0 && idx < self.messages.count {
                     if let response = response {
-                        self.messages[idx].content = response
+                        let parsed = AIModelManager.parseThinking(from: response)
+                        self.messages[idx].content = parsed.content
+                        self.messages[idx].thinkingContent = parsed.thinking.isEmpty ? nil : parsed.thinking
                     } else if let error = error {
                         self.messages[idx].content = "❌ 请求失败：\(error.localizedDescription)"
                     }
+                    self.tableView.reloadRows(at: [IndexPath(row: idx, section: 0)], with: .none)
                 }
                 self.streamingMessageIndex = -1
-                self.tableView.reloadData()
                 self.saveConversation()
             }
         }
@@ -540,7 +550,44 @@ class AIChatViewController: UIViewController {
         present(alert, animated: true)
     }
     
-    @objc private func renameTapped() {
+    @objc private func roleTapped() {
+        let alert = UIAlertController(title: "选择角色", message: "当前：\(manager.currentRole.name)", preferredStyle: .actionSheet)
+        for role in AIRole.presets {
+            let isSelected = role.name == manager.currentRole.name
+            let title = isSelected ? "✓ \(role.name)" : role.name
+            alert.addAction(UIAlertAction(title: title, style: .default) { _ in
+                self.manager.currentRole = role
+                if !role.prompt.isEmpty {
+                    var params = self.manager.loadParams()
+                    params.systemPrompt = role.prompt
+                    self.manager.saveParams(params)
+                }
+                self.showToast("已切换角色：\(role.name)")
+            })
+        }
+        alert.addAction(UIAlertAction(title: "自定义提示词", style: .default) { _ in
+            let params = self.manager.loadParams()
+            let subAlert = UIAlertController(title: "自定义系统提示词", message: nil, preferredStyle: .alert)
+            subAlert.addTextField { $0.text = params.systemPrompt }
+            subAlert.addAction(UIAlertAction(title: "保存", style: .default) { _ in
+                var p = self.manager.loadParams()
+                p.systemPrompt = subAlert.textFields?[0].text ?? ""
+                self.manager.saveParams(p)
+                self.manager.currentRole = AIRole(name: "自定义", prompt: p.systemPrompt, icon: "slider.horizontal.3")
+                self.showToast("自定义角色已保存")
+            })
+            subAlert.addAction(UIAlertAction(title: "取消", style: .cancel))
+            self.present(subAlert, animated: true)
+        })
+        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+        if let popover = alert.popoverPresentationController {
+            popover.sourceView = titleLabel
+        }
+        present(alert, animated: true)
+    }
+    
+    @objc private func renameTapped(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began else { return }
         let alert = UIAlertController(title: "重命名对话", message: nil, preferredStyle: .alert)
         alert.addTextField { $0.text = self.titleLabel.text }
         alert.addAction(UIAlertAction(title: "保存", style: .default) { _ in
@@ -686,6 +733,7 @@ extension AIChatViewController: UITableViewDelegate, UITableViewDataSource {
             return cell
         }
         let cell = tableView.dequeueReusableCell(withIdentifier: "AIChatCell", for: indexPath) as! AIChatCell
+        cell.isThinkingExpanded = expandedThinkingIndices.contains(indexPath.row)
         cell.configure(with: messages[indexPath.row])
         cell.delegate = self
         cell.messageIndex = indexPath.row
@@ -743,6 +791,7 @@ protocol AIChatCellDelegate: AnyObject {
     func didTapRegenerate(at index: Int)
     func didTapDelete(at index: Int)
     func didTapSpeak(at index: Int)
+    func didToggleThinking(at index: Int)
 }
 
 extension AIChatViewController: AIChatCellDelegate {
@@ -761,6 +810,15 @@ extension AIChatViewController: AIChatCellDelegate {
     func didTapSpeak(at index: Int) {
         guard index < messages.count else { return }
         voiceService.speak(messages[index].content)
+    }
+    func didToggleThinking(at index: Int) {
+        guard index < messages.count else { return }
+        if expandedThinkingIndices.contains(index) {
+            expandedThinkingIndices.remove(index)
+        } else {
+            expandedThinkingIndices.insert(index)
+        }
+        tableView.reloadRows(at: [IndexPath(row: index, section: 0)], with: .none)
     }
 }
 
@@ -794,6 +852,13 @@ class AIChatCell: UITableViewCell {
     private let regenerateButton = UIButton(type: .system)
     private let deleteButton = UIButton(type: .system)
     private let speakButton = UIButton(type: .system)
+    
+    // 思考过程折叠
+    private let thinkingContainer = UIView()
+    private let thinkingButton = UIButton(type: .system)
+    private let thinkingTextView = UITextView()
+    private var isThinkingExpanded = false
+    private var thinkingHeightConstraint: NSLayoutConstraint?
     
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -841,6 +906,43 @@ class AIChatCell: UITableViewCell {
         actionStack.addArrangedSubview(deleteButton)
         bubbleView.addSubview(actionStack)
         
+        // 思考过程折叠区域
+        thinkingContainer.backgroundColor = UIColor.systemGray6.withAlphaComponent(0.5)
+        thinkingContainer.layer.cornerRadius = 8
+        thinkingContainer.translatesAutoresizingMaskIntoConstraints = false
+        thinkingContainer.isHidden = true
+        bubbleView.addSubview(thinkingContainer)
+        
+        thinkingButton.setTitle("💭 思考过程", for: .normal)
+        thinkingButton.titleLabel?.font = .systemFont(ofSize: 12)
+        thinkingButton.tintColor = .secondaryLabel
+        thinkingButton.contentHorizontalAlignment = .left
+        thinkingButton.translatesAutoresizingMaskIntoConstraints = false
+        thinkingButton.addTarget(self, action: #selector(toggleThinking), for: .touchUpInside)
+        thinkingContainer.addSubview(thinkingButton)
+        
+        thinkingTextView.isEditable = false
+        thinkingTextView.isScrollEnabled = false
+        thinkingTextView.backgroundColor = .clear
+        thinkingTextView.font = .systemFont(ofSize: 12)
+        thinkingTextView.textColor = .secondaryLabel
+        thinkingTextView.textContainerInset = .zero
+        thinkingTextView.textContainer.lineFragmentPadding = 0
+        thinkingTextView.translatesAutoresizingMaskIntoConstraints = false
+        thinkingTextView.isHidden = true
+        thinkingContainer.addSubview(thinkingTextView)
+        
+        NSLayoutConstraint.activate([
+            thinkingButton.topAnchor.constraint(equalTo: thinkingContainer.topAnchor, constant: 6),
+            thinkingButton.leadingAnchor.constraint(equalTo: thinkingContainer.leadingAnchor, constant: 10),
+            thinkingButton.trailingAnchor.constraint(equalTo: thinkingContainer.trailingAnchor, constant: -10),
+            thinkingButton.heightAnchor.constraint(equalToConstant: 20),
+            thinkingTextView.topAnchor.constraint(equalTo: thinkingButton.bottomAnchor, constant: 4),
+            thinkingTextView.leadingAnchor.constraint(equalTo: thinkingContainer.leadingAnchor, constant: 10),
+            thinkingTextView.trailingAnchor.constraint(equalTo: thinkingContainer.trailingAnchor, constant: -10),
+            thinkingTextView.bottomAnchor.constraint(equalTo: thinkingContainer.bottomAnchor, constant: -6),
+        ])
+        
         NSLayoutConstraint.activate([
             bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
             bubbleView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -4),
@@ -867,6 +969,17 @@ class AIChatCell: UITableViewCell {
         roleLabel.text = isUser ? "我" : "AI"
         actionStack.isHidden = isUser
         
+        // 思考过程
+        if let thinking = message.thinkingContent, !thinking.isEmpty, !isUser {
+            thinkingContainer.isHidden = false
+            thinkingTextView.text = thinking
+            thinkingButton.setTitle(isThinkingExpanded ? "💭 思考过程 ▲" : "💭 思考过程 ▼", for: .normal)
+            thinkingTextView.isHidden = !isThinkingExpanded
+        } else {
+            thinkingContainer.isHidden = true
+            thinkingTextView.isHidden = true
+        }
+        
         bubbleView.constraints.forEach { $0.isActive = false }
         roleLabel.constraints.forEach { $0.isActive = false }
         
@@ -887,11 +1000,28 @@ class AIChatCell: UITableViewCell {
         messageLabel.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: 10).isActive = true
         messageLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 12).isActive = true
         messageLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -12).isActive = true
-        actionStack.topAnchor.constraint(equalTo: messageLabel.bottomAnchor, constant: 8).isActive = true
+        
+        // 思考过程在消息正文下方
+        if !thinkingContainer.isHidden {
+            thinkingContainer.topAnchor.constraint(equalTo: messageLabel.bottomAnchor, constant: 8).isActive = true
+            thinkingContainer.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 8).isActive = true
+            thinkingContainer.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -8).isActive = true
+            actionStack.topAnchor.constraint(equalTo: thinkingContainer.bottomAnchor, constant: 8).isActive = true
+        } else {
+            actionStack.topAnchor.constraint(equalTo: messageLabel.bottomAnchor, constant: 8).isActive = true
+        }
+        
         actionStack.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 12).isActive = true
         actionStack.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -8).isActive = true
         actionStack.heightAnchor.constraint(equalToConstant: 24).isActive = true
         roleLabel.bottomAnchor.constraint(equalTo: bubbleView.topAnchor, constant: -2).isActive = true
+    }
+    
+    @objc private func toggleThinking() {
+        isThinkingExpanded.toggle()
+        thinkingTextView.isHidden = !isThinkingExpanded
+        thinkingButton.setTitle(isThinkingExpanded ? "💭 思考过程 ▲" : "💭 思考过程 ▼", for: .normal)
+        delegate?.didToggleThinking(at: messageIndex)
     }
     
     /// 流式输出时直接更新纯文本，不重新渲染 Markdown，避免高频重建约束导致崩溃
