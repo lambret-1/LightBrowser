@@ -174,7 +174,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         setupWebViewContainer()
         applyToolbarPosition() // 应用工具栏位置（顶部/底部）
         setupWebViews()
-        setupAIChatView()
         setupProgressView()
         setupGestures()
         setupEdgeMenu()
@@ -1120,7 +1119,29 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             for webView in webViews {
                 webView.isHidden = true
             }
-            aiChatVC?.view.isHidden = false
+            // 延迟到下一个runloop创建，确保布局稳定，避免启动闪退
+            if aiChatVC == nil {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    if self.aiChatVC == nil {
+                        let aiVC = AIChatViewController()
+                        self.aiChatVC = aiVC
+                        self.addChild(aiVC)
+                        aiVC.view.translatesAutoresizingMaskIntoConstraints = false
+                        self.webViewContainer.addSubview(aiVC.view)
+                        NSLayoutConstraint.activate([
+                            aiVC.view.topAnchor.constraint(equalTo: self.webViewContainer.topAnchor),
+                            aiVC.view.leadingAnchor.constraint(equalTo: self.webViewContainer.leadingAnchor),
+                            aiVC.view.trailingAnchor.constraint(equalTo: self.webViewContainer.trailingAnchor),
+                            aiVC.view.bottomAnchor.constraint(equalTo: self.webViewContainer.bottomAnchor),
+                        ])
+                        aiVC.didMove(toParent: self)
+                    }
+                    self.aiChatVC?.view.isHidden = false
+                }
+            } else {
+                aiChatVC?.view.isHidden = false
+            }
             updateProgressView()
             updateTranslateButtonState()
             urlTextField.text = "AI 对话"
