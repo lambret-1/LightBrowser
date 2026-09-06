@@ -857,7 +857,7 @@ class AIChatCell: UITableViewCell {
     private let thinkingContainer = UIView()
     private let thinkingButton = UIButton(type: .system)
     private let thinkingTextView = UITextView()
-    private var isThinkingExpanded = false
+    var isThinkingExpanded = false
     private var thinkingHeightConstraint: NSLayoutConstraint?
     
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
