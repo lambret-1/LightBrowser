@@ -174,6 +174,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         setupWebViewContainer()
         applyToolbarPosition() // 应用工具栏位置（顶部/底部）
         setupWebViews()
+        setupAIChatView()
         setupProgressView()
         setupGestures()
         setupEdgeMenu()
@@ -1119,21 +1120,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             for webView in webViews {
                 webView.isHidden = true
             }
-            if aiChatVC == nil {
-                aiChatVC = AIChatViewController()
-            }
-            if let aiVC = aiChatVC, aiVC.parent == nil {
-                addChild(aiVC)
-                aiVC.view.translatesAutoresizingMaskIntoConstraints = false
-                webViewContainer.addSubview(aiVC.view)
-                NSLayoutConstraint.activate([
-                    aiVC.view.topAnchor.constraint(equalTo: webViewContainer.topAnchor),
-                    aiVC.view.leadingAnchor.constraint(equalTo: webViewContainer.leadingAnchor),
-                    aiVC.view.trailingAnchor.constraint(equalTo: webViewContainer.trailingAnchor),
-                    aiVC.view.bottomAnchor.constraint(equalTo: webViewContainer.bottomAnchor),
-                ])
-                aiVC.didMove(toParent: self)
-            }
             aiChatVC?.view.isHidden = false
             updateProgressView()
             updateTranslateButtonState()
@@ -1223,6 +1209,23 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         }
         // webView全部创建完成后，编译广告拦截规则
         compileAdBlockRules()
+    }
+    
+    /// 预创建AI对话视图（避免动态添加导致布局闪退）
+    private func setupAIChatView() {
+        let aiVC = AIChatViewController()
+        aiChatVC = aiVC
+        addChild(aiVC)
+        aiVC.view.translatesAutoresizingMaskIntoConstraints = false
+        aiVC.view.isHidden = true
+        webViewContainer.addSubview(aiVC.view)
+        NSLayoutConstraint.activate([
+            aiVC.view.topAnchor.constraint(equalTo: webViewContainer.topAnchor),
+            aiVC.view.leadingAnchor.constraint(equalTo: webViewContainer.leadingAnchor),
+            aiVC.view.trailingAnchor.constraint(equalTo: webViewContainer.trailingAnchor),
+            aiVC.view.bottomAnchor.constraint(equalTo: webViewContainer.bottomAnchor),
+        ])
+        aiVC.didMove(toParent: self)
     }
     /// 自定义下拉刷新（触发距离120pt，避免误触）
     private func setupCustomRefresh(for webView: WKWebView, index: Int) {
