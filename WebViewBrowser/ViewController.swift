@@ -1655,9 +1655,15 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     @objc private func edgeMenuShowDownloads() {
         closeEdgeMenu()
         let panel = DownloadPanelViewController()
-        // v16.11.5 全屏置顶弹窗
-        panel.modalPresentationStyle = .fullScreen
-        panel.modalTransitionStyle = .coverVertical
+        // v16.11.6 下半屏弹窗
+        panel.modalPresentationStyle = .pageSheet
+        if #available(iOS 15.0, *) {
+            if let sheet = panel.sheetPresentationController {
+                sheet.detents = [.medium()]
+                sheet.prefersGrabberVisible = false
+                sheet.prefersScrollingExpandsWhenScrolledToEdge = true
+            }
+        }
         present(panel, animated: true)
     }
     

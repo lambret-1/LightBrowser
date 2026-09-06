@@ -1,20 +1,24 @@
 import UIKit
 
-// MARK: - 下载管理面板（Bottom Sheet）
+// MARK: - 下载管理面板（下半屏弹窗，浅色主题）
 class DownloadPanelViewController: UIViewController {
     private var tableView: UITableView!
     private var segmentControl: UISegmentedControl!
     private var searchBar: UISearchBar!
     private var filterButton: UIButton!
     private var editButton: UIButton!
-    private var currentTab: Int = 0 // 0=进行中, 1=已完成
+    private var closeButton: UIButton!
+    private var folderButton: UIButton!
+    private var batchDeleteButton: UIButton!
+    private var currentTab: Int = 0
     private var currentFilter: DownloadTask.FileType? = nil
     private var searchText: String = ""
     private var isEditingMode: Bool = false
     private var selectedIds: Set<String> = []
-    
+    private var isUIConnected = false
+
     var onDismiss: (() -> Void)?
-    
+
     private var filteredTasks: [DownloadTask] {
         var list = DownloadManager.shared.allTasks()
         if currentTab == 0 {
@@ -30,7 +34,7 @@ class DownloadPanelViewController: UIViewController {
         }
         return list.sorted { $0.startTime > $1.startTime }
     }
-    
+
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
@@ -41,89 +45,90 @@ class DownloadPanelViewController: UIViewController {
             DispatchQueue.main.async { self?.tableView.reloadData() }
         }
     }
-    
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        connectUIControls()
+    }
+
+    // v16.11.6 统一控件绑定入口，防重复绑定
+    private func connectUIControls() {
+        guard !isUIConnected else { return }
+        isUIConnected = true
+        segmentControl.addTarget(self, action: #selector(segmentChanged), for: .valueChanged)
+        editButton.addTarget(self, action: #selector(toggleEdit), for: .touchUpInside)
+        closeButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
+        folderButton.addTarget(self, action: #selector(openDownloadsFolder), for: .touchUpInside)
+        filterButton.addTarget(self, action: #selector(showFilterMenu), for: .touchUpInside)
+        batchDeleteButton.addTarget(self, action: #selector(batchDelete), for: .touchUpInside)
+        searchBar.delegate = self
+    }
+
     private func setupUI() {
-        // 深色主题
-        view.backgroundColor = UIColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1.0)
+        // 浅色主题
+        view.backgroundColor = .systemBackground
         view.layer.cornerRadius = 16
         view.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
-        
+
         // 顶部把手
         let handle = UIView()
-        handle.backgroundColor = UIColor(white: 0.3, alpha: 1.0)
+        handle.backgroundColor = .systemGray4
         handle.layer.cornerRadius = 3
         handle.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(handle)
-        
+
         // 标题
         let titleLabel = UILabel()
         titleLabel.text = "下载内容"
         titleLabel.font = .systemFont(ofSize: 18, weight: .semibold)
-        titleLabel.textColor = .white
+        titleLabel.textColor = .label
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(titleLabel)
-        
+
         // 编辑按钮
         editButton = UIButton(type: .system)
         editButton.setTitle("编辑", for: .normal)
         editButton.titleLabel?.font = .systemFont(ofSize: 16)
         editButton.tintColor = .systemBlue
         editButton.translatesAutoresizingMaskIntoConstraints = false
-        editButton.addTarget(self, action: #selector(toggleEdit), for: .touchUpInside)
         view.addSubview(editButton)
-        
+
         // 打开文件夹按钮
-        let folderBtn = UIButton(type: .system)
-        folderBtn.setImage(UIImage(systemName: "folder"), for: .normal)
-        folderBtn.tintColor = .systemBlue
-        folderBtn.translatesAutoresizingMaskIntoConstraints = false
-        folderBtn.addTarget(self, action: #selector(openDownloadsFolder), for: .touchUpInside)
-        view.addSubview(folderBtn)
-        
+        folderButton = UIButton(type: .system)
+        folderButton.setImage(UIImage(systemName: "folder"), for: .normal)
+        folderButton.tintColor = .systemBlue
+        folderButton.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(folderButton)
+
         // 关闭按钮
-        let closeBtn = UIButton(type: .system)
-        closeBtn.setImage(UIImage(systemName: "xmark.circle.fill"), for: .normal)
-        closeBtn.tintColor = UIColor(white: 0.5, alpha: 1.0)
-        closeBtn.translatesAutoresizingMaskIntoConstraints = false
-        closeBtn.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
-        view.addSubview(closeBtn)
-        
-        // Segment（深色样式）
+        closeButton = UIButton(type: .system)
+        closeButton.setImage(UIImage(systemName: "xmark.circle.fill"), for: .normal)
+        closeButton.tintColor = .systemGray3
+        closeButton.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(closeButton)
+
+        // Segment（浅色样式）
         segmentControl = UISegmentedControl(items: ["进行中", "已完成"])
         segmentControl.selectedSegmentIndex = 0
         segmentControl.translatesAutoresizingMaskIntoConstraints = false
-        segmentControl.addTarget(self, action: #selector(segmentChanged), for: .valueChanged)
-        if #available(iOS 13.0, *) {
-            segmentControl.backgroundColor = UIColor(white: 0.2, alpha: 1.0)
-            segmentControl.selectedSegmentTintColor = UIColor(white: 0.35, alpha: 1.0)
-            segmentControl.setTitleTextAttributes([.foregroundColor: UIColor.lightGray], for: .normal)
-            segmentControl.setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
-        }
         view.addSubview(segmentControl)
-        
-        // 搜索栏（深色样式）
+
+        // 搜索栏（浅色样式）
         searchBar = UISearchBar()
         searchBar.placeholder = "搜索下载文件"
         searchBar.searchBarStyle = .minimal
-        searchBar.delegate = self
         searchBar.translatesAutoresizingMaskIntoConstraints = false
-        if #available(iOS 13.0, *) {
-            searchBar.searchTextField.textColor = .white
-            searchBar.searchTextField.backgroundColor = UIColor(white: 0.2, alpha: 1.0)
-            searchBar.searchTextField.attributedPlaceholder = NSAttributedString(string: "搜索下载文件", attributes: [.foregroundColor: UIColor.gray])
-        }
         view.addSubview(searchBar)
-        
+
         // 筛选按钮
         filterButton = UIButton(type: .system)
         filterButton.setTitle("全部类型 ▾", for: .normal)
         filterButton.titleLabel?.font = .systemFont(ofSize: 14)
         filterButton.tintColor = .systemBlue
         filterButton.translatesAutoresizingMaskIntoConstraints = false
-        filterButton.addTarget(self, action: #selector(showFilterMenu), for: .touchUpInside)
         view.addSubview(filterButton)
-        
-        // 表格（深色样式）
+
+        // 表格（浅色样式）
         tableView = UITableView(frame: .zero, style: .plain)
         tableView.delegate = self
         tableView.dataSource = self
@@ -131,85 +136,85 @@ class DownloadPanelViewController: UIViewController {
         tableView.rowHeight = 70
         tableView.translatesAutoresizingMaskIntoConstraints = false
         tableView.allowsMultipleSelectionDuringEditing = true
-        tableView.backgroundColor = UIColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1.0)
-        tableView.separatorColor = UIColor(white: 0.2, alpha: 1.0)
-        if #available(iOS 13.0, *) {
-            tableView.indicatorStyle = .white
-        }
+        tableView.backgroundColor = .systemBackground
+        tableView.separatorColor = .separator
         view.addSubview(tableView)
-        
-        // 批量删除按钮（编辑模式显示）
-        let batchDeleteBtn = UIButton(type: .system)
-        batchDeleteBtn.setTitle("删除选中", for: .normal)
-        batchDeleteBtn.titleLabel?.font = .systemFont(ofSize: 16, weight: .medium)
-        batchDeleteBtn.backgroundColor = .systemRed
-        batchDeleteBtn.setTitleColor(.white, for: .normal)
-        batchDeleteBtn.layer.cornerRadius = 8
-        batchDeleteBtn.translatesAutoresizingMaskIntoConstraints = false
-        batchDeleteBtn.isHidden = true
-        batchDeleteBtn.tag = 999
-        batchDeleteBtn.addTarget(self, action: #selector(batchDelete), for: .touchUpInside)
-        view.addSubview(batchDeleteBtn)
-        
+
+        // 批量删除按钮
+        batchDeleteButton = UIButton(type: .system)
+        batchDeleteButton.setTitle("删除选中", for: .normal)
+        batchDeleteButton.titleLabel?.font = .systemFont(ofSize: 16, weight: .medium)
+        batchDeleteButton.backgroundColor = .systemRed
+        batchDeleteButton.setTitleColor(.white, for: .normal)
+        batchDeleteButton.layer.cornerRadius = 8
+        batchDeleteButton.translatesAutoresizingMaskIntoConstraints = false
+        batchDeleteButton.isHidden = true
+        view.addSubview(batchDeleteButton)
+
         NSLayoutConstraint.activate([
             handle.topAnchor.constraint(equalTo: view.topAnchor, constant: 8),
             handle.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             handle.widthAnchor.constraint(equalToConstant: 40),
             handle.heightAnchor.constraint(equalToConstant: 6),
-            
+
             titleLabel.topAnchor.constraint(equalTo: handle.bottomAnchor, constant: 12),
             titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            
+
             editButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
-            editButton.trailingAnchor.constraint(equalTo: closeBtn.leadingAnchor, constant: -12),
-            
-            closeBtn.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
-            closeBtn.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            closeBtn.widthAnchor.constraint(equalToConstant: 30),
-            closeBtn.heightAnchor.constraint(equalToConstant: 30),
-            
+            editButton.trailingAnchor.constraint(equalTo: closeButton.leadingAnchor, constant: -12),
+
+            closeButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+            closeButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            closeButton.widthAnchor.constraint(equalToConstant: 30),
+            closeButton.heightAnchor.constraint(equalToConstant: 30),
+
+            folderButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+            folderButton.trailingAnchor.constraint(equalTo: editButton.leadingAnchor, constant: -12),
+            folderButton.widthAnchor.constraint(equalToConstant: 30),
+            folderButton.heightAnchor.constraint(equalToConstant: 30),
+
             segmentControl.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 12),
             segmentControl.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             segmentControl.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            
+
             searchBar.topAnchor.constraint(equalTo: segmentControl.bottomAnchor, constant: 4),
             searchBar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
             searchBar.trailingAnchor.constraint(equalTo: filterButton.leadingAnchor, constant: -8),
             searchBar.heightAnchor.constraint(equalToConstant: 44),
-            
+
             filterButton.centerYAnchor.constraint(equalTo: searchBar.centerYAnchor),
             filterButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
             filterButton.widthAnchor.constraint(equalToConstant: 90),
-            
+
             tableView.topAnchor.constraint(equalTo: searchBar.bottomAnchor, constant: 4),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            tableView.bottomAnchor.constraint(equalTo: batchDeleteBtn.topAnchor, constant: -8),
-            
-            batchDeleteBtn.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            batchDeleteBtn.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            batchDeleteBtn.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
-            batchDeleteBtn.heightAnchor.constraint(equalToConstant: 44),
+            tableView.bottomAnchor.constraint(equalTo: batchDeleteButton.topAnchor, constant: -8),
+
+            batchDeleteButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            batchDeleteButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            batchDeleteButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
+            batchDeleteButton.heightAnchor.constraint(equalToConstant: 44),
         ])
     }
-    
+
     @objc private func closeTapped() {
         dismiss(animated: true) { self.onDismiss?() }
     }
-    
+
     @objc private func segmentChanged() {
         currentTab = segmentControl.selectedSegmentIndex
         tableView.reloadData()
     }
-    
+
     @objc private func toggleEdit() {
         isEditingMode.toggle()
         tableView.setEditing(isEditingMode, animated: true)
         editButton.setTitle(isEditingMode ? "完成" : "编辑", for: .normal)
-        view.viewWithTag(999)?.isHidden = !isEditingMode
+        batchDeleteButton.isHidden = !isEditingMode
         selectedIds.removeAll()
     }
-    
+
     @objc private func batchDelete() {
         let alert = UIAlertController(title: "确认删除", message: "删除选中的 \(selectedIds.count) 项？", preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "仅删除记录", style: .default) { _ in
@@ -225,7 +230,7 @@ class DownloadPanelViewController: UIViewController {
         alert.addAction(UIAlertAction(title: "取消", style: .cancel))
         present(alert, animated: true)
     }
-    
+
     @objc private func showFilterMenu() {
         let alert = UIAlertController(title: "按类型筛选", message: nil, preferredStyle: .actionSheet)
         let types: [(String, DownloadTask.FileType?)] = [
@@ -258,13 +263,13 @@ class DownloadPanelViewController: UIViewController {
         if UIApplication.shared.canOpenURL(url) {
             UIApplication.shared.open(url, options: [:]) { success in
                 if !success {
-                    let alert = UIAlertController(title: "下载路径", message: "文件App → 我的iPhone → 轻浏览 → Downloads", preferredStyle: .alert)
+                    let alert = UIAlertController(title: "下载路径", message: "文件App → 我的iPhone → 轻量浏览器 → Downloads", preferredStyle: .alert)
                     alert.addAction(UIAlertAction(title: "知道了", style: .default))
                     self.present(alert, animated: true)
                 }
             }
         } else {
-            let alert = UIAlertController(title: "下载路径", message: "文件App → 我的iPhone → 轻浏览 → Downloads", preferredStyle: .alert)
+            let alert = UIAlertController(title: "下载路径", message: "文件App → 我的iPhone → 轻量浏览器 → Downloads", preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "知道了", style: .default))
             self.present(alert, animated: true)
         }
@@ -281,7 +286,7 @@ extension DownloadPanelViewController: UITableViewDelegate, UITableViewDataSourc
         }
         return count
     }
-    
+
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "DownloadCell", for: indexPath) as! DownloadCell
         let task = filteredTasks[indexPath.row]
@@ -291,7 +296,7 @@ extension DownloadPanelViewController: UITableViewDelegate, UITableViewDataSourc
         }
         return cell
     }
-    
+
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         if isEditingMode {
             let task = filteredTasks[indexPath.row]
@@ -306,14 +311,14 @@ extension DownloadPanelViewController: UITableViewDelegate, UITableViewDataSourc
             present(activityVC, animated: true)
         }
     }
-    
+
     func tableView(_ tableView: UITableView, didDeselectRowAt indexPath: IndexPath) {
         if isEditingMode {
             let task = filteredTasks[indexPath.row]
             selectedIds.remove(task.id)
         }
     }
-    
+
     func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
         if isEditingMode { return nil }
         let task = filteredTasks[indexPath.row]
@@ -324,7 +329,7 @@ extension DownloadPanelViewController: UITableViewDelegate, UITableViewDataSourc
         }
         return UISwipeActionsConfiguration(actions: [delete])
     }
-    
+
     private func handleCellAction(task: DownloadTask, action: DownloadCell.Action) {
         switch action {
         case .pause: DownloadManager.shared.pause(id: task.id)
@@ -349,89 +354,93 @@ extension DownloadPanelViewController: UISearchBarDelegate {
         self.searchText = searchText
         tableView.reloadData()
     }
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        searchBar.resignFirstResponder()
+    }
 }
 
-// MARK: - 下载单元格
+// MARK: - 下载单元格（浅色主题）
 class DownloadCell: UITableViewCell {
     enum Action { case pause, resume, cancel, retry, share }
     var onAction: ((Action) -> Void)?
-    
+
     private let iconView = UIImageView()
     private let nameLabel = UILabel()
     private let detailLabel = UILabel()
     private let progressView = UIProgressView()
     private let actionButton = UIButton(type: .system)
-    
+
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
         setupUI()
     }
     required init?(coder: NSCoder) { fatalError() }
-    
+
     private func setupUI() {
-        backgroundColor = UIColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1.0)
-        contentView.backgroundColor = UIColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1.0)
+        backgroundColor = .systemBackground
+        contentView.backgroundColor = .systemBackground
         iconView.contentMode = .scaleAspectFit
         iconView.tintColor = .systemBlue
         iconView.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(iconView)
-        
+
         nameLabel.font = .systemFont(ofSize: 15, weight: .medium)
-        nameLabel.lineBreakMode = .byTruncatingMiddle
+        nameLabel.textColor = .label
+        nameLabel.lineBreakMode = .byTruncatedMiddle
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(nameLabel)
-        
+
         detailLabel.font = .systemFont(ofSize: 12)
-        detailLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
+        detailLabel.textColor = .secondaryLabel
         detailLabel.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(detailLabel)
-        
+
         progressView.progressTintColor = .systemBlue
-        progressView.trackTintColor = UIColor(white: 0.25, alpha: 1.0)
+        progressView.trackTintColor = .systemGray5
         progressView.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(progressView)
-        
+
         actionButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .medium)
         actionButton.translatesAutoresizingMaskIntoConstraints = false
         actionButton.addTarget(self, action: #selector(actionTapped), for: .touchUpInside)
         contentView.addSubview(actionButton)
-        
+
         NSLayoutConstraint.activate([
             iconView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
             iconView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
             iconView.widthAnchor.constraint(equalToConstant: 32),
             iconView.heightAnchor.constraint(equalToConstant: 32),
-            
+
             nameLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 10),
             nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12),
             nameLabel.trailingAnchor.constraint(equalTo: actionButton.leadingAnchor, constant: -8),
-            
+
             detailLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 2),
             detailLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
             detailLabel.trailingAnchor.constraint(equalTo: nameLabel.trailingAnchor),
-            
+
             progressView.topAnchor.constraint(equalTo: detailLabel.bottomAnchor, constant: 4),
             progressView.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
             progressView.trailingAnchor.constraint(equalTo: nameLabel.trailingAnchor),
             progressView.heightAnchor.constraint(equalToConstant: 4),
-            
+
             actionButton.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
             actionButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
             actionButton.widthAnchor.constraint(equalToConstant: 50),
         ])
     }
-    
+
     private var currentAction: DownloadCell.Action = .pause
-    
+
     @objc private func actionTapped() {
         onAction?(currentAction)
     }
-    
+
     func configure(with task: DownloadTask) {
         iconView.image = UIImage(systemName: task.fileType.iconName)
         iconView.tintColor = task.fileType.color
         nameLabel.text = task.fileName
-        
+
         switch task.status {
         case .downloading:
             detailLabel.text = "\(task.downloadedText) / \(task.sizeText)  \(Int(task.progress * 100))%"
@@ -474,7 +483,7 @@ extension UITableView {
     func setEmptyMessage(_ message: String) {
         let label = UILabel(frame: CGRect(x: 0, y: 0, width: bounds.width, height: bounds.height))
         label.text = message
-        label.textColor = UIColor(white: 0.5, alpha: 1.0)
+        label.textColor = .secondaryLabel
         label.textAlignment = .center
         label.font = .systemFont(ofSize: 16)
         backgroundView = label
@@ -484,6 +493,4 @@ extension UITableView {
         backgroundView = nil
         separatorStyle = .singleLine
     }
-
-
 }
