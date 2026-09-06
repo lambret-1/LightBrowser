@@ -15,16 +15,15 @@ import EventKit
 import AppTrackingTransparency
 class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UIScrollViewDelegate, UITextFieldDelegate {
     // MARK: - 配置项
-    private var windowTitles: [String] = ["GitHub", "CF", "Google", "AI"]
+    private var windowTitles: [String] = ["GitHub", "CF", "Google", "YouTube"]
     private var windowURLs: [String] = [
         "https://github.com",
         "https://dash.cloudflare.com/",
         "https://www.google.com",
-        "about:blank"
+        "https://www.youtube.com"
     ]
-    /// AI 对话视图控制器（第4个标签）
+    /// AI 对话视图控制器（菜单栏弹出）
     private var aiChatVC: AIChatViewController?
-    private let aiTabIndex = 3
     /// 书签列表（长按GitHub收藏，长按CF打开）
     private var bookmarks: [String] = []
     private let bookmarksKey = "savedBookmarks"
@@ -51,7 +50,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     private var urlTextField: UITextField!
     private var webViews: [WKWebView] = []
     private var webViewContainer: UIView!
-    private var aiOverlayView: UIView!
     private var progressView: UIProgressView!
     private var panGestures: [UIPanGestureRecognizer] = []
     // 右边缘下滑功能菜单
@@ -509,8 +507,8 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             self.showToast("窗口配置已保存")
         })
         alert.addAction(UIAlertAction(title: "恢复默认", style: .destructive) { _ in
-            self.windowTitles = ["GitHub", "CF", "Google", "AI"]
-            self.windowURLs = ["https://github.com", "https://dash.cloudflare.com/", "https://www.google.com", "about:blank"]
+            self.windowTitles = ["GitHub", "CF", "Google", "YouTube"]
+            self.windowURLs = ["https://github.com", "https://dash.cloudflare.com/", "https://www.google.com", "https://www.youtube.com"]
             UserDefaults.standard.removeObject(forKey: self.customTitlesKey)
             UserDefaults.standard.removeObject(forKey: self.customURLsKey)
             for (i, btn) in self.tabButtons.enumerated() {
@@ -1094,12 +1092,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         guard let btn = gesture.view as? UIButton else { return }
         let index = btn.tag
         switchToTab(index: index)
-        if index == aiTabIndex {
-            // AI 标签双击：新建对话
-            NotificationCenter.default.post(name: NSNotification.Name("ClearAIChat"), object: nil)
-            showToast("已新建 AI 对话")
-            return
-        }
         guard let url = URL(string: windowURLs[index]) else { return }
         webViews[index].load(URLRequest(url: url))
         showToast("已返回\(windowTitles[index])主页")
@@ -1115,36 +1107,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
                 button.titleLabel?.font = .systemFont(ofSize: 10, weight: .regular)
             }
         }
-        // AI 标签：显示独立覆盖窗口，完全脱离 WebView 容器
-        if index == aiTabIndex {
-            aiOverlayView.isHidden = false
-            view.bringSubviewToFront(aiOverlayView)
-            // 延迟创建 AIChatViewController，确保布局稳定
-            if aiChatVC == nil {
-                DispatchQueue.main.async { [weak self] in
-                    guard let self = self else { return }
-                    if self.aiChatVC == nil {
-                        let aiVC = AIChatViewController()
-                        self.aiChatVC = aiVC
-                        aiVC.view.translatesAutoresizingMaskIntoConstraints = false
-                        self.aiOverlayView.addSubview(aiVC.view)
-                        NSLayoutConstraint.activate([
-                            aiVC.view.topAnchor.constraint(equalTo: self.aiOverlayView.topAnchor),
-                            aiVC.view.leadingAnchor.constraint(equalTo: self.aiOverlayView.leadingAnchor),
-                            aiVC.view.trailingAnchor.constraint(equalTo: self.aiOverlayView.trailingAnchor),
-                            aiVC.view.bottomAnchor.constraint(equalTo: self.aiOverlayView.bottomAnchor),
-                        ])
-                        self.aiOverlayView.layoutIfNeeded()
-                    }
-                }
-            }
-            updateProgressView()
-            updateTranslateButtonState()
-            urlTextField.text = "AI 对话"
-            return
-        }
-        // 普通标签：隐藏 AI 覆盖窗口，显示 webView
-        aiOverlayView.isHidden = true
         for (i, webView) in webViews.enumerated() {
             webView.isHidden = (i != index)
         }
@@ -1168,19 +1130,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             webViewContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             webViewContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             webViewBottomConstraint
-        ])
-        // AI 对话独立覆盖窗口（最上层，遮挡浏览器但不遮挡顶部工具栏）
-        aiOverlayView = UIView()
-        aiOverlayView.translatesAutoresizingMaskIntoConstraints = false
-        aiOverlayView.backgroundColor = .systemBackground
-        aiOverlayView.isHidden = true
-        view.addSubview(aiOverlayView)
-        view.bringSubviewToFront(aiOverlayView)
-        NSLayoutConstraint.activate([
-            aiOverlayView.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
-            aiOverlayView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            aiOverlayView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            aiOverlayView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
     }
     private func setupWebViews() {
@@ -1838,9 +1787,10 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     
     @objc private func edgeMenuShowAIChat() {
         closeEdgeMenu()
-        let aiChatVC = AIChatViewController()
-        aiChatVC.modalPresentationStyle = .fullScreen
-        present(aiChatVC, animated: true)
+        let aiVC = AIChatViewController()
+        aiChatVC = aiVC
+        aiVC.modalPresentationStyle = .fullScreen
+        present(aiVC, animated: true)
     }
     
     private func showProxySettings() {
@@ -3768,8 +3718,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
 
     // MARK: - 边缘滑动导航（左边缘右滑返回，右边缘左滑前进）
     @objc private func handleEdgeNavigation(_ gesture: UIScreenEdgePanGestureRecognizer) {
-        // AI标签页不响应边缘导航
-        guard activeIndex != aiTabIndex else { return }
         let translation = gesture.translation(in: view)
         let velocity = gesture.velocity(in: view)
         let threshold: CGFloat = 60

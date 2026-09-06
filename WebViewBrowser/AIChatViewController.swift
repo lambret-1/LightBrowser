@@ -24,6 +24,10 @@ class AIChatViewController: UIViewController {
     private var sideMenuLeading: NSLayoutConstraint!
     private var sideMenuTableView: UITableView!
     
+    // 边缘手势
+    private var leftEdgeGesture: UIScreenEdgePanGestureRecognizer!
+    private var rightEdgeGesture: UIScreenEdgePanGestureRecognizer!
+    
     // MARK: - 数据
     private var currentConversation: Conversation?
     private var messages: [ChatMessage] = []
@@ -238,6 +242,59 @@ class AIChatViewController: UIViewController {
             stopButton.widthAnchor.constraint(equalToConstant: 36),
             stopButton.heightAnchor.constraint(equalToConstant: 36),
         ])
+        
+        // 边缘手势：左边缘右滑关闭，右边缘左滑切换对话
+        leftEdgeGesture = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(handleLeftEdgePan(_:)))
+        leftEdgeGesture.edges = .left
+        view.addGestureRecognizer(leftEdgeGesture)
+        
+        rightEdgeGesture = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(handleRightEdgePan(_:)))
+        rightEdgeGesture.edges = .right
+        view.addGestureRecognizer(rightEdgeGesture)
+    }
+    
+    // MARK: - 边缘手势处理
+    @objc private func handleLeftEdgePan(_ gesture: UIScreenEdgePanGestureRecognizer) {
+        let translation = gesture.translation(in: view)
+        let velocity = gesture.velocity(in: view)
+        guard gesture.state == .ended else { return }
+        // 右滑超过60pt或速度超过500pt/s则关闭
+        if translation.x > 60 || velocity.x > 500 {
+            dismiss(animated: true)
+        }
+    }
+    
+    @objc private func handleRightEdgePan(_ gesture: UIScreenEdgePanGestureRecognizer) {
+        let translation = gesture.translation(in: view)
+        let velocity = gesture.velocity(in: view)
+        guard gesture.state == .ended else { return }
+        // 左滑超过60pt或速度超过500pt/s则切换到下一个对话
+        if translation.x < -60 || velocity.x < -500 {
+            switchToNextConversation()
+        }
+    }
+    
+    private func switchToNextConversation() {
+        let conversations = ConversationManager.shared.loadConversations()
+        guard !conversations.isEmpty else { return }
+        let currentID = currentConversation?.id ?? ""
+        if let index = conversations.firstIndex(where: { $0.id == currentID }) {
+            let nextIndex = (index + 1) % conversations.count
+            let conv = conversations[nextIndex]
+            currentConversation = conv
+            messages = conv.messages
+            titleLabel.text = conv.title
+            ConversationManager.shared.currentConversationID = conv.id
+            tableView.reloadData()
+            scrollToBottom()
+        } else if let first = conversations.first {
+            currentConversation = first
+            messages = first.messages
+            titleLabel.text = first.title
+            ConversationManager.shared.currentConversationID = first.id
+            tableView.reloadData()
+            scrollToBottom()
+        }
     }
     
     private func setupSideMenu() {
