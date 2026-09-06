@@ -389,12 +389,13 @@ class AIChatViewController: UIViewController {
         manager.streamChat(messages: messagesForAPI, config: config, model: model, params: params, onToken: { [weak self] token in
             guard let self = self else { return }
             DispatchQueue.main.async {
-                if self.streamingMessageIndex >= 0 && self.streamingMessageIndex < self.messages.count {
-                    self.messages[self.streamingMessageIndex].content += token
-                    if let cell = self.tableView.cellForRow(at: IndexPath(row: self.streamingMessageIndex, section: 0)) as? AIChatCell {
-                        cell.configure(with: self.messages[self.streamingMessageIndex])
-                    }
-                    self.scrollToBottom()
+                guard self.streamingMessageIndex >= 0 && self.streamingMessageIndex < self.messages.count else { return }
+                self.messages[self.streamingMessageIndex].content += token
+                if let cell = self.tableView.cellForRow(at: IndexPath(row: self.streamingMessageIndex, section: 0)) as? AIChatCell {
+                    cell.updateStreamingText(self.messages[self.streamingMessageIndex].content)
+                }
+                if self.tableView.contentOffset.y + self.tableView.frame.height > self.tableView.contentSize.height - 200 {
+                    self.tableView.scrollToRow(at: IndexPath(row: self.streamingMessageIndex, section: 0), at: .bottom, animated: false)
                 }
             }
         }) { [weak self] response, error in
@@ -403,10 +404,13 @@ class AIChatViewController: UIViewController {
                 self.isStreaming = false
                 self.sendButton.isHidden = false
                 self.stopButton.isHidden = true
-                if let response = response {
-                    self.messages[self.streamingMessageIndex].content = response
-                } else if let error = error {
-                    self.messages[self.streamingMessageIndex].content = "❌ 请求失败：\(error.localizedDescription)"
+                let idx = self.streamingMessageIndex
+                if idx >= 0 && idx < self.messages.count {
+                    if let response = response {
+                        self.messages[idx].content = response
+                    } else if let error = error {
+                        self.messages[idx].content = "❌ 请求失败：\(error.localizedDescription)"
+                    }
                 }
                 self.streamingMessageIndex = -1
                 self.tableView.reloadData()
@@ -459,12 +463,13 @@ class AIChatViewController: UIViewController {
         manager.streamChat(messages: messagesForAPI, config: config, model: model, params: params, onToken: { [weak self] token in
             guard let self = self else { return }
             DispatchQueue.main.async {
-                if self.streamingMessageIndex >= 0 && self.streamingMessageIndex < self.messages.count {
-                    self.messages[self.streamingMessageIndex].content += token
-                    if let cell = self.tableView.cellForRow(at: IndexPath(row: self.streamingMessageIndex, section: 0)) as? AIChatCell {
-                        cell.configure(with: self.messages[self.streamingMessageIndex])
-                    }
-                    self.scrollToBottom()
+                guard self.streamingMessageIndex >= 0 && self.streamingMessageIndex < self.messages.count else { return }
+                self.messages[self.streamingMessageIndex].content += token
+                if let cell = self.tableView.cellForRow(at: IndexPath(row: self.streamingMessageIndex, section: 0)) as? AIChatCell {
+                    cell.updateStreamingText(self.messages[self.streamingMessageIndex].content)
+                }
+                if self.tableView.contentOffset.y + self.tableView.frame.height > self.tableView.contentSize.height - 200 {
+                    self.tableView.scrollToRow(at: IndexPath(row: self.streamingMessageIndex, section: 0), at: .bottom, animated: false)
                 }
             }
         }) { [weak self] response, error in
@@ -473,10 +478,13 @@ class AIChatViewController: UIViewController {
                 self.isStreaming = false
                 self.sendButton.isHidden = false
                 self.stopButton.isHidden = true
-                if let response = response {
-                    self.messages[self.streamingMessageIndex].content = response
-                } else if let error = error {
-                    self.messages[self.streamingMessageIndex].content = "❌ 请求失败：\(error.localizedDescription)"
+                let idx = self.streamingMessageIndex
+                if idx >= 0 && idx < self.messages.count {
+                    if let response = response {
+                        self.messages[idx].content = response
+                    } else if let error = error {
+                        self.messages[idx].content = "❌ 请求失败：\(error.localizedDescription)"
+                    }
                 }
                 self.streamingMessageIndex = -1
                 self.tableView.reloadData()
@@ -884,6 +892,13 @@ class AIChatCell: UITableViewCell {
         actionStack.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -8).isActive = true
         actionStack.heightAnchor.constraint(equalToConstant: 24).isActive = true
         roleLabel.bottomAnchor.constraint(equalTo: bubbleView.topAnchor, constant: -2).isActive = true
+    }
+    
+    /// 流式输出时直接更新纯文本，不重新渲染 Markdown，避免高频重建约束导致崩溃
+    func updateStreamingText(_ text: String) {
+        messageLabel.attributedText = nil
+        messageLabel.text = text
+        messageLabel.font = .systemFont(ofSize: 15)
     }
     
     @objc private func copyTapped() { delegate?.didTapCopy(at: messageIndex) }
