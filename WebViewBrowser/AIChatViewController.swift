@@ -36,9 +36,17 @@ class AIChatViewController: UIViewController {
     private let kbManager = KnowledgeBaseManager.shared
     
     // MARK: - 生命周期
+    private var didSetup = false
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
+    }
+    
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        guard !didSetup else { return }
+        didSetup = true
         setupUI()
         setupSideMenu()
         setupKeyboardObservers()

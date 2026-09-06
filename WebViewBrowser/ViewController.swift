@@ -1126,7 +1126,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
                     if self.aiChatVC == nil {
                         let aiVC = AIChatViewController()
                         self.aiChatVC = aiVC
-                        self.addChild(aiVC)
                         aiVC.view.translatesAutoresizingMaskIntoConstraints = false
                         self.aiOverlayView.addSubview(aiVC.view)
                         NSLayoutConstraint.activate([
@@ -1135,7 +1134,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
                             aiVC.view.trailingAnchor.constraint(equalTo: self.aiOverlayView.trailingAnchor),
                             aiVC.view.bottomAnchor.constraint(equalTo: self.aiOverlayView.bottomAnchor),
                         ])
-                        aiVC.didMove(toParent: self)
+                        self.aiOverlayView.layoutIfNeeded()
                     }
                 }
             }
