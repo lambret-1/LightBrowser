@@ -1354,6 +1354,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         
         // 初始化功能列表（从UserDefaults读取排序）
         let defaultFunctions: [(String, String, Selector)] = [
+            ("message", "AI 对话", #selector(edgeMenuShowAIChat)),
             ("bookmark", "增加书签", #selector(edgeMenuAddBookmark)),
             ("book", "书签列表", #selector(edgeMenuShowBookmarks)),
             ("clock", "历史记录", #selector(edgeMenuShowHistory)),
@@ -1779,6 +1780,13 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     @objc private func edgeMenuShowProxy() {
         closeEdgeMenu()
         showProxySettings()
+    }
+    
+    @objc private func edgeMenuShowAIChat() {
+        closeEdgeMenu()
+        let aiChatVC = AIChatViewController()
+        aiChatVC.modalPresentationStyle = .fullScreen
+        present(aiChatVC, animated: true)
     }
     
     private func showProxySettings() {

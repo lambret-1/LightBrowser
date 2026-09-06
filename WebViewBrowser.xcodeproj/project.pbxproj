@@ -30,6 +30,8 @@
 		ASSETS_ID /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ASSETS_REF /* Assets.xcassets */; };
 		LAUNCHSCREEN_ID /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = LAUNCHSCREEN_REF /* LaunchScreen.storyboard */; };
 		4476EC437D27CD122CB15084 /* TencentTranslateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA45A7582909CA8597A5DCB8 /* TencentTranslateManager.swift */; };
+		54696B23815689CEDCA60EF7 /* AIModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0042031FEA3536886421E167 /* AIModelManager.swift */; };
+		42271473979A300DC64B6422 /* AIChatViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60F1E307A9012E45D7F1A1F /* AIChatViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -61,6 +63,8 @@
 		MAIN_ENTITLEMENTS_REF /* WebViewBrowser.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WebViewBrowser.entitlements; sourceTree = "<group>"; };
 		APPPROXY_PRODUCT_REF /* AppProxyExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AppProxyExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA45A7582909CA8597A5DCB8 /* TencentTranslateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TencentTranslateManager.swift; sourceTree = "<group>"; };
+		0042031FEA3536886421E167 /* AIModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIModelManager.swift; sourceTree = "<group>"; };
+		F60F1E307A9012E45D7F1A1F /* AIChatViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -102,6 +106,8 @@ APPPROXY_FRAMEWORKS /* Frameworks */ = {
 				OFFLINECACHE_REF /* OfflineCacheManager.swift */,
 				TRANSLATE_REF /* TranslateManager.swift */,
 				AA45A7582909CA8597A5DCB8 /* TencentTranslateManager.swift */,
+				F60F1E307A9012E45D7F1A1F /* AIChatViewController.swift */,
+				0042031FEA3536886421E167 /* AIModelManager.swift */,
 				DICT_REF /* en_zh_dict.json */,
 				GITHUBDICT_REF /* github_dict.json */,
 				GITHUBUI_REF /* github_ui.json */,
@@ -247,6 +253,8 @@ APPPROXY_TARGET /* AppProxyExtension */ = {
 				OFFLINECACHE_ID /* OfflineCacheManager.swift in Sources */,
 				TRANSLATE_ID /* TranslateManager.swift in Sources */,
 				4476EC437D27CD122CB15084 /* TencentTranslateManager.swift in Sources */,
+				42271473979A300DC64B6422 /* AIChatViewController.swift in Sources */,
+				54696B23815689CEDCA60EF7 /* AIModelManager.swift in Sources */,
 				FOURLEVELCACHE_ID /* FourLevelCache.swift in Sources */,
 				SCENEDELEGATE_ID /* SceneDelegate.swift in Sources */,
 				VIEWCONTROLLER_ID /* ViewController.swift in Sources */,
