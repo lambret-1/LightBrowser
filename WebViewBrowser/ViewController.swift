@@ -2478,7 +2478,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         // 翻译模式切换（v16.11.9 移除本地翻译和自动翻译，保留在线/混合/自动增强）
         let currentMode = TranslateManager.shared.currentMode
         let modeNames: [TranslateManager.TranslateMode: String] = [
-            .online: "在线翻译（百度接口）",
+            .online: "在线翻译（腾讯云接口）",
             .mixed: "混合翻译（推荐）",
             .autoEnhanced: "自动翻译增强（UI离线+长文本在线兜底）"
         ]
@@ -3951,10 +3951,24 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         }
     }
     private func translateSingle(_ text: String, completion: @escaping (String?) -> Void) {
+        // v16.12.0 优先使用腾讯云翻译 API
+        TencentTranslateManager.shared.translate(text) { translated, error in
+            if let translated = translated, !translated.isEmpty {
+                completion(translated)
+                return
+            }
+            // 腾讯云翻译失败，降级到 Google 翻译
+            self.translateWithGoogleFallback(text, completion: completion)
+        }
+    }
+    
+    // 降级方案：Google 翻译 + MyMemory
+    private func translateWithGoogleFallback(_ text: String, completion: @escaping (String?) -> Void) {
         let encoded = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? text
         let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"
         guard let url1 = URL(string: "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=zh-CN&dt=t&q=\(encoded)") else {
-            completion(nil); return
+            self.translateWithMyMemory(text, completion: completion)
+            return
         }
         var req1 = URLRequest(url: url1)
         req1.timeoutInterval = 10
@@ -3972,26 +3986,32 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
                 }
                 if !translated.isEmpty { completion(translated); return }
             }
-            guard let url2 = URL(string: "https://api.mymemory.translated.net/get?q=\(encoded)&langpair=autodetect|zh-CN") else {
-                completion(nil); return
+            self.translateWithMyMemory(text, completion: completion)
+        }.resume()
+    }
+    
+    private func translateWithMyMemory(_ text: String, completion: @escaping (String?) -> Void) {
+        let encoded = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? text
+        let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"
+        guard let url2 = URL(string: "https://api.mymemory.translated.net/get?q=\(encoded)&langpair=autodetect|zh-CN") else {
+            completion(nil); return
+        }
+        var req2 = URLRequest(url: url2)
+        req2.timeoutInterval = 10
+        req2.httpMethod = "GET"
+        req2.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        req2.setValue("https://mymemory.translated.net/", forHTTPHeaderField: "Referer")
+        URLSession.shared.dataTask(with: req2) { data, response, _ in
+            if let data = data,
+               let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let status = json["responseStatus"] as? Int, status == 200,
+               let respData = json["responseData"] as? [String: Any],
+               let translated = respData["translatedText"] as? String,
+               !translated.isEmpty {
+                completion(translated); return
             }
-            var req2 = URLRequest(url: url2)
-            req2.timeoutInterval = 10
-            req2.httpMethod = "GET"
-            req2.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-            req2.setValue("https://mymemory.translated.net/", forHTTPHeaderField: "Referer")
-            URLSession.shared.dataTask(with: req2) { data, response, _ in
-                if let data = data,
-                   let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200,
-                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let status = json["responseStatus"] as? Int, status == 200,
-                   let respData = json["responseData"] as? [String: Any],
-                   let translated = respData["translatedText"] as? String,
-                   !translated.isEmpty {
-                    completion(translated); return
-                }
-                completion(nil)
-            }.resume()
+            completion(nil)
         }.resume()
     }
     private func applyTranslations(_ translations: [String], to webView: WKWebView) {
