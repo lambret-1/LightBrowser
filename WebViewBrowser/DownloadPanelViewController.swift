@@ -49,6 +49,8 @@ class DownloadPanelViewController: UIViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         connectUIControls()
+        // v16.11.7 修复：打开面板时立即刷新数据
+        tableView.reloadData()
     }
 
     // v16.11.6 统一控件绑定入口，防重复绑定

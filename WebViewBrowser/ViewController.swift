@@ -4443,6 +4443,11 @@ extension ViewController: WKDownloadDelegate {
                 alert.view.tintColor = .systemBlue
             }
             let confirmAction = UIAlertAction(title: "确认下载", style: .default) { _ in
+                // v16.11.7 修复：创建下载任务记录，使下载管理面板能显示任务
+                let fileSize = (response as? HTTPURLResponse)?.expectedContentLength ?? 0
+                let mimeType = response.mimeType ?? ""
+                let downloadURL = response.url?.absoluteString ?? ""
+                DownloadManager.shared.startWKDownload(download: download, url: downloadURL, fileName: fileName, fileSize: fileSize, mimeType: mimeType)
                 DownloadManager.shared.setDestinationURL(destURL, for: download)
                 completionHandler(destURL)
                 self.showToast("开始下载：\(suggestedFilename)")

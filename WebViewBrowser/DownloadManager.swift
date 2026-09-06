@@ -87,6 +87,8 @@ class DownloadManager: NSObject, URLSessionDownloadDelegate {
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 300
         session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
+        // v16.11.7 修复：启动时加载持久化的下载记录
+        loadPersistedTasks()
     }
     
     // MARK: - 持久化
