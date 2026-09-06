@@ -1655,13 +1655,9 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     @objc private func edgeMenuShowDownloads() {
         closeEdgeMenu()
         let panel = DownloadPanelViewController()
-        panel.modalPresentationStyle = .pageSheet
-        if #available(iOS 15.0, *) {
-            if let sheet = panel.sheetPresentationController {
-                sheet.detents = [.medium(), .large()]
-                sheet.prefersGrabberVisible = false
-            }
-        }
+        // v16.11.5 全屏置顶弹窗
+        panel.modalPresentationStyle = .fullScreen
+        panel.modalTransitionStyle = .coverVertical
         present(panel, animated: true)
     }
     
@@ -4412,14 +4408,14 @@ extension ViewController: WKDownloadDelegate {
         let fileManager = FileManager.default
         let docsDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let downloadsDir = docsDir.appendingPathComponent("Downloads", isDirectory: true)
-        // 确保目录存在
         try? fileManager.createDirectory(at: downloadsDir, withIntermediateDirectories: true)
-        // 处理文件名，避免非法字符
+
+        // 处理文件名
         var fileName = suggestedFilename
         fileName = fileName.components(separatedBy: CharacterSet(charactersIn: "/\\?%*|\"<>:")).joined(separator: "_")
         if fileName.isEmpty { fileName = "download_\(Int(Date().timeIntervalSince1970))" }
         var destURL = downloadsDir.appendingPathComponent(fileName)
-        // 避免重名，自动重命名
+        // 避免重名
         var counter = 1
         while fileManager.fileExists(atPath: destURL.path) {
             let ext = (fileName as NSString).pathExtension
@@ -4432,10 +4428,26 @@ extension ViewController: WKDownloadDelegate {
             destURL = downloadsDir.appendingPathComponent(fileName)
             counter += 1
         }
-        print("[Download] 目标路径: \(destURL.path)")
-        // 保存目标路径，供下载完成后使用
-        DownloadManager.shared.setDestinationURL(destURL, for: download)
-        completionHandler(destURL)
+
+        // v16.11.5 二次确认弹窗（置顶深色样式）
+        DispatchQueue.main.async {
+            let alert = UIAlertController(title: "下载确认", message: "文件名：\(suggestedFilename)\n\n保存位置：文件 App → 轻量浏览器 → Downloads", preferredStyle: .alert)
+            if #available(iOS 13.0, *) {
+                alert.view.backgroundColor = UIColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 1.0)
+                alert.view.tintColor = .systemBlue
+            }
+            let confirmAction = UIAlertAction(title: "确认下载", style: .default) { _ in
+                DownloadManager.shared.setDestinationURL(destURL, for: download)
+                completionHandler(destURL)
+                self.showToast("开始下载：\(suggestedFilename)")
+            }
+            let cancelAction = UIAlertAction(title: "取消", style: .cancel) { _ in
+                completionHandler(nil)
+            }
+            alert.addAction(confirmAction)
+            alert.addAction(cancelAction)
+            self.present(alert, animated: true)
+        }
     }
     
     @objc func downloadDidFinish(_ download: WKDownload) {
