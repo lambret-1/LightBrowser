@@ -372,11 +372,16 @@ class SettingsViewController: UIViewController, UITableViewDelegate, UITableView
         SettingsManager.shared.checkForUpdate(repo: "lambret-1/LightBrowser", currentVersion: current) { hasUpdate, latest in
             if hasUpdate, let latest = latest {
                 let alert = UIAlertController(title: "发现新版本", message: "最新版本：v\(latest)\n当前版本：v\(current)\n\n下载后请用 TrollStore 安装更新", preferredStyle: .alert)
-                // 直接下载 IPA
+                // 在浏览器内下载 IPA
                 alert.addAction(UIAlertAction(title: "下载更新", style: .default) { _ in
                     let ipaURL = "https://github.com/lambret-1/LightBrowser/releases/download/v\(latest)/LightBrowser-v\(latest).ipa"
-                    if let url = URL(string: ipaURL) {
-                        UIApplication.shared.open(url)
+                    // 关闭设置页面，通知主界面在浏览器内下载
+                    self.dismiss(animated: true) {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("DownloadUpdateIPA"),
+                            object: nil,
+                            userInfo: ["url": ipaURL]
+                        )
                     }
                 })
                 // 前往 Release 页面

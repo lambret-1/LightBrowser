@@ -197,6 +197,8 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         NotificationCenter.default.addObserver(self, selector: #selector(appDidBecomeActive), name: UIApplication.didBecomeActiveNotification, object: nil)
         // 打开离线网页（缓存管理页发通知）
         NotificationCenter.default.addObserver(self, selector: #selector(openOfflinePage(_:)), name: NSNotification.Name("OpenOfflinePage"), object: nil)
+        // 设置页面触发下载更新IPA
+        NotificationCenter.default.addObserver(self, selector: #selector(handleDownloadUpdateIPA(_:)), name: NSNotification.Name("DownloadUpdateIPA"), object: nil)
         // 下载管理回调
         DownloadManager.shared.onProgress = { [weak self] _ in
             DispatchQueue.main.async { self?.updateDownloadBadge() }
@@ -2808,14 +2810,26 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
                 )
                 alert.addAction(UIAlertAction(title: "立即更新", style: .default) { _ in
                     let ipaURL = "https://github.com/lambret-1/LightBrowser/releases/download/v\(latest)/LightBrowser-v\(latest).ipa"
+                    // 在当前浏览器内下载
                     if let url = URL(string: ipaURL) {
-                        UIApplication.shared.open(url)
+                        self.currentWebView.load(URLRequest(url: url))
+                        self.updateURLField()
+                        self.showToast("正在浏览器内下载更新包...")
                     }
                 })
                 alert.addAction(UIAlertAction(title: "稍后", style: .cancel))
                 self.present(alert, animated: true)
             }
         }
+    }
+    
+    /// 设置页面触发下载更新IPA
+    @objc private func handleDownloadUpdateIPA(_ notification: Notification) {
+        guard let urlString = notification.userInfo?["url"] as? String,
+              let url = URL(string: urlString) else { return }
+        currentWebView.load(URLRequest(url: url))
+        updateURLField()
+        showToast("正在浏览器内下载更新包...")
     }
     
     /// 手动保存当前网页到四级离线缓存
