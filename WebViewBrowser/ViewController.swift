@@ -50,6 +50,9 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     private var webViewContainer: UIView!
     private var progressView: UIProgressView!
     private var panGestures: [UIPanGestureRecognizer] = []
+    // Safari式网页快照恢复
+    private var snapshotImageViews: [UIImageView] = []
+    private var isRestoringSnapshot = false
     // 右边缘下滑功能菜单
     private var edgeMenuView: UIView!
     private var edgeMenuOverlay: UIButton!
@@ -1108,6 +1111,11 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         for (i, webView) in webViews.enumerated() {
             webView.isHidden = (i != index)
         }
+        // 更新快照截图显隐
+        for imageView in snapshotImageViews {
+            let snapshotIndex = imageView.tag - 9000
+            imageView.isHidden = (snapshotIndex != index)
+        }
         updateProgressView()
         updateTranslateButtonState()
         updateURLField()
@@ -1210,11 +1218,107 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         refreshLabels.append(label)
     }
     private func loadInitialPages() {
+        let snapshotEnabled = PageSnapshotManager.shared.isEnabled
+        isRestoringSnapshot = snapshotEnabled
+        
         for (index, urlString) in windowURLs.enumerated() {
             guard let url = URL(string: urlString) else { continue }
-            webViews[index].load(URLRequest(url: url))
+            
+            if snapshotEnabled, let snapshot = PageSnapshotManager.shared.getSnapshot(index: index),
+               let snapshotImage = PageSnapshotManager.shared.getSnapshotImage(index: index) {
+                // 有快照：先显示截图，后台加载网页
+                setupSnapshotImageView(index: index, image: snapshotImage)
+                // 后台异步加载网页
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.webViews[index].load(URLRequest(url: URL(string: snapshot.url) ?? url))
+                }
+            } else {
+                // 无快照：正常加载
+                webViews[index].load(URLRequest(url: url))
+            }
             // 启动时预解析所有窗口DNS
             prefetchDNS(for: urlString)
+        }
+    }
+    
+    /// 设置快照截图覆盖层
+    private func setupSnapshotImageView(index: Int, image: UIImage) {
+        let imageView = UIImageView(image: image)
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.tag = 9000 + index
+        webViewContainer.addSubview(imageView)
+        
+        NSLayoutConstraint.activate([
+            imageView.topAnchor.constraint(equalTo: webViewContainer.topAnchor),
+            imageView.leadingAnchor.constraint(equalTo: webViewContainer.leadingAnchor),
+            imageView.trailingAnchor.constraint(equalTo: webViewContainer.trailingAnchor),
+            imageView.bottomAnchor.constraint(equalTo: webViewContainer.bottomAnchor),
+        ])
+        
+        // 只显示当前活动标签的截图
+        imageView.isHidden = (index != activeIndex)
+        snapshotImageViews.append(imageView)
+    }
+    
+    /// 网页加载完成后隐藏快照截图并恢复滚动位置
+    private func hideSnapshotAndRestoreScroll(index: Int) {
+        guard isRestoringSnapshot else { return }
+        
+        // 恢复滚动位置
+        if let snapshot = PageSnapshotManager.shared.getSnapshot(index: index), snapshot.scrollY > 0 {
+            let scrollJS = "window.scrollTo(0, \(snapshot.scrollY));"
+            webViews[index].evaluateJavaScript(scrollJS, completionHandler: nil)
+        }
+        
+        // 淡出截图
+        if let imageView = snapshotImageViews.first(where: { $0.tag == 9000 + index }) {
+            UIView.animate(withDuration: 0.3, animations: {
+                imageView.alpha = 0
+            }) { _ in
+                imageView.removeFromSuperview()
+                if let idx = self.snapshotImageViews.firstIndex(of: imageView) {
+                    self.snapshotImageViews.remove(at: idx)
+                }
+            }
+        }
+        
+        // 所有标签都恢复完成后退出恢复模式
+        if snapshotImageViews.isEmpty {
+            isRestoringSnapshot = false
+        }
+    }
+    
+    /// 保存所有标签快照（APP切后台时调用）
+    func saveAllSnapshots() {
+        guard PageSnapshotManager.shared.isEnabled else { return }
+        
+        for (index, webView) in webViews.enumerated() {
+            guard let url = webView.url?.absoluteString, !url.isEmpty, url != "about:blank" else {
+                PageSnapshotManager.shared.deleteSnapshot(index: index)
+                continue
+            }
+            
+            // 获取滚动位置
+            webView.evaluateJavaScript("window.scrollY") { [weak self] result, _ in
+                guard let self = self else { return }
+                let scrollY = (result as? CGFloat) ?? 0
+                
+                // 生成网页截图
+                self.takeSnapshot(of: webView) { image in
+                    PageSnapshotManager.shared.saveSnapshot(index: index, url: url, scrollY: scrollY, image: image)
+                }
+            }
+        }
+    }
+    
+    /// 对WKWebView生成截图
+    private func takeSnapshot(of webView: WKWebView, completion: @escaping (UIImage?) -> Void) {
+        let config = WKSnapshotConfiguration()
+        config.rect = webView.bounds
+        webView.takeSnapshot(with: config) { image, _ in
+            completion(image)
         }
     }
     private var currentWebView: WKWebView {
@@ -2250,7 +2354,37 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             self.showOfflineCacheSettings()
         })
         
+        // Safari式页面快照恢复
+        let snapshotEnabled = PageSnapshotManager.shared.isEnabled
+        let snapshotText = snapshotEnabled ? "已开启" : "已关闭"
+        alert.addAction(UIAlertAction(title: "📸 页面快照恢复（当前：\(snapshotText)）", style: .default) { _ in
+            self.showSnapshotRestoreSelector()
+        })
+        
         alert.addAction(UIAlertAction(title: "关闭", style: .cancel))
+        if let popover = alert.popoverPresentationController {
+            popover.sourceView = self.view
+            popover.sourceRect = CGRect(x: self.view.bounds.midX, y: self.view.bounds.midY, width: 0, height: 0)
+        }
+        present(alert, animated: true)
+    }
+    
+    // MARK: - Safari式页面快照恢复开关
+    private func showSnapshotRestoreSelector() {
+        let alert = UIAlertController(title: "页面快照恢复", message: "开启后，APP退出再打开会先显示上次网页截图，后台悄悄加载网页，模拟Safari体验\n关闭后，APP启动直接加载网页（可能看到白屏）", preferredStyle: .actionSheet)
+        
+        alert.addAction(UIAlertAction(title: "✅ 开启快照恢复（推荐）", style: .default) { _ in
+            PageSnapshotManager.shared.setEnabled(true)
+            self.showToast("已开启页面快照恢复")
+        })
+        
+        alert.addAction(UIAlertAction(title: "❌ 关闭快照恢复", style: .default) { _ in
+            PageSnapshotManager.shared.setEnabled(false)
+            PageSnapshotManager.shared.clearAllSnapshots()
+            self.showToast("已关闭页面快照恢复")
+        })
+        
+        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
         if let popover = alert.popoverPresentationController {
             popover.sourceView = self.view
             popover.sourceRect = CGRect(x: self.view.bounds.midX, y: self.view.bounds.midY, width: 0, height: 0)
@@ -4140,6 +4274,10 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             endCustomRefresh(for: index)
             isTranslated[index] = false
             if index == activeIndex { updateTranslateButtonState() }
+            // Safari式快照恢复：加载完成后隐藏截图并恢复滚动位置
+            if isRestoringSnapshot {
+                hideSnapshotAndRestoreScroll(index: index)
+            }
         }
         if webView === currentWebView {
             progressView.isHidden = true

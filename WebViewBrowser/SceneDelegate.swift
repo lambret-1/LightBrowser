@@ -13,7 +13,19 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
     func sceneDidDisconnect(_ scene: UIScene) {}
     func sceneDidBecomeActive(_ scene: UIScene) {}
-    func sceneWillResignActive(_ scene: UIScene) {}
+    func sceneWillResignActive(_ scene: UIScene) {
+        // APP切后台前保存网页快照
+        if let navController = window?.rootViewController as? UINavigationController,
+           let viewController = navController.viewControllers.first as? ViewController {
+            viewController.saveAllSnapshots()
+        }
+    }
     func sceneWillEnterForeground(_ scene: UIScene) {}
-    func sceneDidEnterBackground(_ scene: UIScene) {}
+    func sceneDidEnterBackground(_ scene: UIScene) {
+        // APP进入后台时再次确保保存快照
+        if let navController = window?.rootViewController as? UINavigationController,
+           let viewController = navController.viewControllers.first as? ViewController {
+            viewController.saveAllSnapshots()
+        }
+    }
 }
