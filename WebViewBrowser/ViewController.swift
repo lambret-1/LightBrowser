@@ -4343,6 +4343,14 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             UIApplication.shared.open(url)
             return
         }
+        // .mobileconfig 配置描述文件：iOS不允许App内直接安装，必须唤起Safari
+        if url.absoluteString.lowercased().hasSuffix(".mobileconfig") {
+            decisionHandler(.cancel)
+            DebugLogger.shared.logInfo("检测到配置描述文件，唤起Safari打开: \(url.absoluteString)")
+            UIApplication.shared.open(url)
+            showToast("已跳转Safari安装描述文件")
+            return
+        }
         decisionHandler(.allow)
     }
     // MARK: - WKUIDelegate

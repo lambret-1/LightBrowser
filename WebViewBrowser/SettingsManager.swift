@@ -186,16 +186,27 @@ class SettingsManager: NSObject {
     // MARK: - 版本检测
     /// 检查 GitHub 仓库最新版本
     func checkForUpdate(repo: String, currentVersion: String, completion: @escaping (Bool, String?) -> Void) {
+        DebugLogger.shared.logInfo("版本检测开始：本地版本 v\(currentVersion)，仓库 \(repo)")
         let url = URL(string: "https://api.github.com/repos/\(repo)/releases/latest")!
         URLSession.shared.dataTask(with: url) { data, _, error in
-            guard let data = data, error == nil,
+            if let error = error {
+                DebugLogger.shared.logError("版本检测请求失败：\(error.localizedDescription)")
+                DispatchQueue.main.async { completion(false, nil) }
+                return
+            }
+            guard let data = data,
                   let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let tag = dict["tag_name"] as? String else {
+                DebugLogger.shared.logError("版本检测解析失败：无有效Release数据")
                 DispatchQueue.main.async { completion(false, nil) }
                 return
             }
             let latestVersion = tag.replacingOccurrences(of: "v", with: "")
             let hasUpdate = latestVersion.compare(currentVersion, options: .numeric) == .orderedDescending
+            // 检查是否有IPA附件
+            let assets = dict["assets"] as? [[String: Any]] ?? []
+            let hasIPA = assets.contains { ($0["name"] as? String)?.lowercased().hasSuffix(".ipa") ?? false }
+            DebugLogger.shared.logInfo("版本检测完成：远程 v\(latestVersion)，本地 v\(currentVersion)，有更新=\(hasUpdate)，IPA附件=\(hasIPA)，附件数=\(assets.count)")
             DispatchQueue.main.async { completion(hasUpdate, latestVersion) }
         }.resume()
     }
