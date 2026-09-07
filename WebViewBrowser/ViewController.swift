@@ -4499,15 +4499,23 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     
     // MARK: - 网页文字查找
     @objc private func customFindInPage(_ sender: Any) {
-        FindInPageManager.shared.getSelectedText(in: currentWebView) { [weak self] selectedText in
-            guard let self = self else { return }
-            DispatchQueue.main.async {
-                if #available(iOS 16.0, *) {
-                    // iOS16+ 使用系统原生查找导航器
-                    FindInPageManager.shared.presentNativeFindNavigator(in: self.currentWebView, initialText: selectedText)
-                } else {
-                    // iOS14-15 使用自定义查找栏 + JS高亮
-                    self.showCustomFindBar(initialText: selectedText)
+        if #available(iOS 16.0, *) {
+            // iOS16+ 直接调用系统原生查找导航器（同步调用，确保webView仍是第一响应者）
+            if let interaction = currentWebView.findInteraction {
+                interaction.presentFindNavigator(showingReplace: false)
+            } else {
+                // fallback：获取选中文字后用自定义查找栏
+                FindInPageManager.shared.getSelectedText(in: currentWebView) { [weak self] text in
+                    DispatchQueue.main.async {
+                        self?.showCustomFindBar(initialText: text)
+                    }
+                }
+            }
+        } else {
+            // iOS14-15：获取选中文字后用自定义查找栏
+            FindInPageManager.shared.getSelectedText(in: currentWebView) { [weak self] text in
+                DispatchQueue.main.async {
+                    self?.showCustomFindBar(initialText: text)
                 }
             }
         }
