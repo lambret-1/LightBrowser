@@ -54,7 +54,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     private var snapshotImageViews: [UIImageView] = []
     private var isRestoringSnapshot = false
     // 网页文字查找
-    private let findBarView = FindBarView()
+    private let pageFindBar = FindBarView()
     // 右边缘下滑功能菜单
     private var edgeMenuView: UIView!
     private var edgeMenuOverlay: UIButton!
@@ -1123,7 +1123,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         updateTranslateButtonState()
         updateURLField()
         // 切换标签时关闭查找栏
-        findBarView.hide()
+        pageFindBar.hide()
         FindInPageManager.shared.clearHighlights(in: webViews[index])
         // DNS预解析 + TCP预连接（加速页面加载）
         let targetURL = windowURLs[index]
@@ -4515,36 +4515,36 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     
     /// 显示自定义查找栏（iOS14-15）
     private func showCustomFindBar(initialText: String) {
-        findBarView.onSearch = { [weak self] keyword in
+        pageFindBar.onSearch = { [weak self] keyword in
             guard let self = self else { return }
             FindInPageManager.shared.findInWebView(self.currentWebView, keyword: keyword) { current, total in
                 DispatchQueue.main.async {
-                    self.findBarView.updateCount(current: current, total: total)
+                    self.pageFindBar.updateCount(current: current, total: total)
                 }
             }
         }
-        findBarView.onNext = { [weak self] in
+        pageFindBar.onNext = { [weak self] in
             guard let self = self else { return }
             FindInPageManager.shared.findNext(in: self.currentWebView) { current, total in
                 DispatchQueue.main.async {
-                    self.findBarView.updateCount(current: current, total: total)
+                    self.pageFindBar.updateCount(current: current, total: total)
                 }
             }
         }
-        findBarView.onPrev = { [weak self] in
+        pageFindBar.onPrev = { [weak self] in
             guard let self = self else { return }
             FindInPageManager.shared.findPrev(in: self.currentWebView) { current, total in
                 DispatchQueue.main.async {
-                    self.findBarView.updateCount(current: current, total: total)
+                    self.pageFindBar.updateCount(current: current, total: total)
                 }
             }
         }
-        findBarView.onClose = { [weak self] in
+        pageFindBar.onClose = { [weak self] in
             guard let self = self else { return }
             FindInPageManager.shared.clearHighlights(in: self.currentWebView)
-            self.findBarView.hide()
+            self.pageFindBar.hide()
         }
-        findBarView.show(in: view, initialText: initialText)
+        pageFindBar.show(in: view, initialText: initialText)
     }
 }
 // MARK: - UIGestureRecognizerDelegate
