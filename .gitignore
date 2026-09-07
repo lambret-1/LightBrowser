@@ -29,3 +29,5 @@ Package.resolved
 .idea/
 .vscode/
 *.swp
+ipa.zip
+ipa_output/
