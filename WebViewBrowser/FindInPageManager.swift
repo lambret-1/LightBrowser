@@ -158,10 +158,10 @@ class FindInPageManager: NSObject {
             var idx = \(currentMatchIndex - 1);
             if (idx >= 0 && idx < marks.length) {
                 marks[idx].classList.add('active');
-                // 强制滚动到可视区域居中
+                // 瞬间滚动到可视区域居中（无动画，响应快）
                 var rect = marks[idx].getBoundingClientRect();
                 var targetY = window.scrollY + rect.top - window.innerHeight / 2 + rect.height / 2;
-                window.scrollTo({top: targetY, behavior: 'smooth'});
+                window.scrollTo({top: targetY, behavior: 'auto'});
             }
         })();
         """

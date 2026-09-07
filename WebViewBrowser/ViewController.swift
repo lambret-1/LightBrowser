@@ -4344,7 +4344,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
 
     // MARK: - 菜单汉化
     override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
-        // 过滤系统默认英文菜单，只显示自定义中文菜单项
+        // 只允许自定义中文菜单项，其他系统默认菜单全部禁用（确保查找置顶）
         let customActions: Set<Selector> = [
             #selector(customCopy(_:)),
             #selector(customPaste(_:)),
@@ -4355,18 +4355,8 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         if customActions.contains(action) {
             return true
         }
-        // 屏蔽系统默认的 copy/paste/cut/selectAll（避免显示英文）
-        let systemActions: Set<Selector> = [
-            #selector(cut(_:)),
-            #selector(copy(_:)),
-            #selector(paste(_:)),
-            #selector(select(_:)),
-            #selector(selectAll(_:))
-        ]
-        if systemActions.contains(action) {
-            return false
-        }
-        return super.canPerformAction(action, withSender: sender)
+        // 屏蔽所有系统默认动作（copy/paste/cut/selectAll/定义/翻译/分享/朗读等）
+        return false
     }
     
     override func cut(_ sender: Any?) {
