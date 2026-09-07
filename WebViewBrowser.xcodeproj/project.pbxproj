@@ -15,6 +15,8 @@
 		CACHEMGR_ID /* CacheManagerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CACHEMGR_REF /* CacheManagerViewController.swift */; };
 		OFFLINECACHE_ID /* OfflineCacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = OFFLINECACHE_REF /* OfflineCacheManager.swift */; };
 		PAGESNAP_ID /* PageSnapshotManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = PAGESNAP_REF /* PageSnapshotManager.swift */; };
+		FINDMGR_ID /* FindInPageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FINDMGR_REF /* FindInPageManager.swift */; };
+		FINDBAR_ID /* FindBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FINDBAR_REF /* FindBarView.swift */; };
 		TRANSLATE_ID /* TranslateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = TRANSLATE_REF /* TranslateManager.swift */; };
 		DICT_ID /* en_zh_dict.json in Resources */ = {isa = PBXBuildFile; fileRef = DICT_REF /* en_zh_dict.json */; };
 		GITHUBDICT_ID /* github_dict.json in Resources */ = {isa = PBXBuildFile; fileRef = GITHUBDICT_REF /* github_dict.json */; };
@@ -42,6 +44,8 @@
 		CACHEMGR_REF /* CacheManagerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheManagerViewController.swift; sourceTree = "<group>"; };
 		OFFLINECACHE_REF /* OfflineCacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineCacheManager.swift; sourceTree = "<group>"; };
 		PAGESNAP_REF /* PageSnapshotManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageSnapshotManager.swift; sourceTree = "<group>"; };
+		FINDMGR_REF /* FindInPageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindInPageManager.swift; sourceTree = "<group>"; };
+		FINDBAR_REF /* FindBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindBarView.swift; sourceTree = "<group>"; };
 		TRANSLATE_REF /* TranslateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslateManager.swift; sourceTree = "<group>"; };
 		DICT_REF /* en_zh_dict.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = en_zh_dict.json; sourceTree = "<group>"; };
 		GITHUBDICT_REF /* github_dict.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = github_dict.json; sourceTree = "<group>"; };
@@ -103,6 +107,8 @@ APPPROXY_FRAMEWORKS /* Frameworks */ = {
 				CACHEMGR_REF /* CacheManagerViewController.swift */,
 				OFFLINECACHE_REF /* OfflineCacheManager.swift */,
 				PAGESNAP_REF /* PageSnapshotManager.swift */,
+				FINDMGR_REF /* FindInPageManager.swift */,
+				FINDBAR_REF /* FindBarView.swift */,
 				TRANSLATE_REF /* TranslateManager.swift */,
 				AA45A7582909CA8597A5DCB8 /* TencentTranslateManager.swift */,
 				DICT_REF /* en_zh_dict.json */,
@@ -249,6 +255,8 @@ APPPROXY_TARGET /* AppProxyExtension */ = {
 				CACHEMGR_ID /* CacheManagerViewController.swift in Sources */,
 				OFFLINECACHE_ID /* OfflineCacheManager.swift in Sources */,
 				PAGESNAP_ID /* PageSnapshotManager.swift in Sources */,
+				FINDMGR_ID /* FindInPageManager.swift in Sources */,
+				FINDBAR_ID /* FindBarView.swift in Sources */,
 				TRANSLATE_ID /* TranslateManager.swift in Sources */,
 				4476EC437D27CD122CB15084 /* TencentTranslateManager.swift in Sources */,
 				FOURLEVELCACHE_ID /* FourLevelCache.swift in Sources */,

@@ -53,6 +53,8 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     // Safari式网页快照恢复
     private var snapshotImageViews: [UIImageView] = []
     private var isRestoringSnapshot = false
+    // 网页文字查找
+    private let findBarView = FindBarView()
     // 右边缘下滑功能菜单
     private var edgeMenuView: UIView!
     private var edgeMenuOverlay: UIButton!
@@ -182,7 +184,8 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             UIMenuItem(title: "复制", action: #selector(customCopy(_:))),
             UIMenuItem(title: "粘贴", action: #selector(customPaste(_:))),
             UIMenuItem(title: "剪切", action: #selector(customCut(_:))),
-            UIMenuItem(title: "全选", action: #selector(customSelectAllText(_:)))
+            UIMenuItem(title: "全选", action: #selector(customSelectAllText(_:))),
+            UIMenuItem(title: "🔍 查找", action: #selector(customFindInPage(_:)))
         ]
         switchToTab(index: 0)
         loadInitialPages()
@@ -1119,6 +1122,9 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         updateProgressView()
         updateTranslateButtonState()
         updateURLField()
+        // 切换标签时关闭查找栏
+        findBarView.hide()
+        FindInPageManager.shared.clearHighlights(in: webViews[index])
         // DNS预解析 + TCP预连接（加速页面加载）
         let targetURL = windowURLs[index]
         prefetchDNS(for: targetURL)
@@ -4343,7 +4349,8 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             #selector(customCopy(_:)),
             #selector(customPaste(_:)),
             #selector(customCut(_:)),
-            #selector(customSelectAllText(_:))
+            #selector(customSelectAllText(_:)),
+            #selector(customFindInPage(_:))
         ]
         if customActions.contains(action) {
             return true
@@ -4488,6 +4495,56 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     }
     @objc private func customSelectAllText(_ sender: Any) {
         currentWebView.evaluateJavaScript("document.execCommand('selectAll')") { _, _ in }
+    }
+    
+    // MARK: - 网页文字查找
+    @objc private func customFindInPage(_ sender: Any) {
+        FindInPageManager.shared.getSelectedText(in: currentWebView) { [weak self] selectedText in
+            guard let self = self else { return }
+            DispatchQueue.main.async {
+                if #available(iOS 16.0, *) {
+                    // iOS16+ 使用系统原生查找导航器
+                    FindInPageManager.shared.presentNativeFindNavigator(in: self.currentWebView, initialText: selectedText)
+                } else {
+                    // iOS14-15 使用自定义查找栏 + JS高亮
+                    self.showCustomFindBar(initialText: selectedText)
+                }
+            }
+        }
+    }
+    
+    /// 显示自定义查找栏（iOS14-15）
+    private func showCustomFindBar(initialText: String) {
+        findBarView.onSearch = { [weak self] keyword in
+            guard let self = self else { return }
+            FindInPageManager.shared.findInWebView(self.currentWebView, keyword: keyword) { current, total in
+                DispatchQueue.main.async {
+                    self.findBarView.updateCount(current: current, total: total)
+                }
+            }
+        }
+        findBarView.onNext = { [weak self] in
+            guard let self = self else { return }
+            FindInPageManager.shared.findNext(in: self.currentWebView) { current, total in
+                DispatchQueue.main.async {
+                    self.findBarView.updateCount(current: current, total: total)
+                }
+            }
+        }
+        findBarView.onPrev = { [weak self] in
+            guard let self = self else { return }
+            FindInPageManager.shared.findPrev(in: self.currentWebView) { current, total in
+                DispatchQueue.main.async {
+                    self.findBarView.updateCount(current: current, total: total)
+                }
+            }
+        }
+        findBarView.onClose = { [weak self] in
+            guard let self = self else { return }
+            FindInPageManager.shared.clearHighlights(in: self.currentWebView)
+            self.findBarView.hide()
+        }
+        findBarView.show(in: view, initialText: initialText)
     }
 }
 // MARK: - UIGestureRecognizerDelegate
