@@ -17,6 +17,8 @@
 		PAGESNAP_ID /* PageSnapshotManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = PAGESNAP_REF /* PageSnapshotManager.swift */; };
 		FINDMGR_ID /* FindInPageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FINDMGR_REF /* FindInPageManager.swift */; };
 		FINDBAR_ID /* FindBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FINDBAR_REF /* FindBarView.swift */; };
+		DEBUGLOG_ID /* DebugLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEBUGLOG_REF /* DebugLogger.swift */; };
+		DEBUGLOGVC_ID /* DebugLogViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEBUGLOGVC_REF /* DebugLogViewController.swift */; };
 		TRANSLATE_ID /* TranslateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = TRANSLATE_REF /* TranslateManager.swift */; };
 		DICT_ID /* en_zh_dict.json in Resources */ = {isa = PBXBuildFile; fileRef = DICT_REF /* en_zh_dict.json */; };
 		GITHUBDICT_ID /* github_dict.json in Resources */ = {isa = PBXBuildFile; fileRef = GITHUBDICT_REF /* github_dict.json */; };
@@ -46,6 +48,8 @@
 		PAGESNAP_REF /* PageSnapshotManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageSnapshotManager.swift; sourceTree = "<group>"; };
 		FINDMGR_REF /* FindInPageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindInPageManager.swift; sourceTree = "<group>"; };
 		FINDBAR_REF /* FindBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindBarView.swift; sourceTree = "<group>"; };
+		DEBUGLOG_REF /* DebugLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogger.swift; sourceTree = "<group>"; };
+		DEBUGLOGVC_REF /* DebugLogViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogViewController.swift; sourceTree = "<group>"; };
 		TRANSLATE_REF /* TranslateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslateManager.swift; sourceTree = "<group>"; };
 		DICT_REF /* en_zh_dict.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = en_zh_dict.json; sourceTree = "<group>"; };
 		GITHUBDICT_REF /* github_dict.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = github_dict.json; sourceTree = "<group>"; };
@@ -109,6 +113,8 @@ APPPROXY_FRAMEWORKS /* Frameworks */ = {
 				PAGESNAP_REF /* PageSnapshotManager.swift */,
 				FINDMGR_REF /* FindInPageManager.swift */,
 				FINDBAR_REF /* FindBarView.swift */,
+				DEBUGLOG_REF /* DebugLogger.swift */,
+				DEBUGLOGVC_REF /* DebugLogViewController.swift */,
 				TRANSLATE_REF /* TranslateManager.swift */,
 				AA45A7582909CA8597A5DCB8 /* TencentTranslateManager.swift */,
 				DICT_REF /* en_zh_dict.json */,
@@ -257,6 +263,8 @@ APPPROXY_TARGET /* AppProxyExtension */ = {
 				PAGESNAP_ID /* PageSnapshotManager.swift in Sources */,
 				FINDMGR_ID /* FindInPageManager.swift in Sources */,
 				FINDBAR_ID /* FindBarView.swift in Sources */,
+				DEBUGLOG_ID /* DebugLogger.swift in Sources */,
+				DEBUGLOGVC_ID /* DebugLogViewController.swift in Sources */,
 				TRANSLATE_ID /* TranslateManager.swift in Sources */,
 				4476EC437D27CD122CB15084 /* TencentTranslateManager.swift in Sources */,
 				FOURLEVELCACHE_ID /* FourLevelCache.swift in Sources */,

@@ -1475,6 +1475,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             ("hand.raised", "广告黑名单", #selector(edgeMenuManageAdBlock)),
             ("internaldrive", "缓存管理", #selector(edgeMenuShowCacheManager)),
             ("network", "高级代理(AppProxy)", #selector(edgeMenuShowProxy)),
+            ("ant.circle", "调试日志", #selector(edgeMenuShowDebugLog)),
             ("gear", "设置", #selector(edgeMenuShowSettings))
         ]
         // 读取保存的排序
@@ -2296,6 +2297,15 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
                 self.showToast("全部更新完成，新增\(newCount)个节点")
             }
         }
+    }
+    
+    @objc private func edgeMenuShowDebugLog() {
+        closeEdgeMenu()
+        let debugLogVC = DebugLogViewController()
+        debugLogVC.modalPresentationStyle = .fullScreen
+        let nav = UINavigationController(rootViewController: debugLogVC)
+        nav.modalPresentationStyle = .fullScreen
+        present(nav, animated: true)
     }
     
     @objc private func edgeMenuShowSettings() {

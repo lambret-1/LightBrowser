@@ -2,7 +2,17 @@
 
 一个基于 WKWebView 的 iOS 浏览器，支持手势导航、多窗口、广告拦截、VLESS 代理、节点测速等功能。
 
-## 当前版本：v16.17.12
+## 当前版本：v16.17.13
+
+## v16.17.13 更新日志
+- 新增全局调试日志功能
+  - 崩溃自动捕获：NSException + Unix信号（SIGABRT/SIGILL/SIGSEGV/SIGFPE/SIGBUS/SIGPIPE）
+  - 崩溃日志包含时间、异常名、原因、完整调用栈
+  - 手动日志：logInfo/logWarning/logError 三级日志
+  - 日志查看页面：功能菜单 → 调试日志
+  - 支持复制、分享、清空、刷新操作
+  - 日志文件存储在 Documents/debug_log.txt，最大2MB自动截断
+  - 应用启动时自动记录启动日志
 
 ## v16.17.12 更新日志
 - 优化查找跳转速度：findNext/findPrev 与高亮滚动合并为单次JS调用，减少 evaluateJavaScript 延迟
