@@ -22,8 +22,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         "https://www.google.com",
         "https://www.youtube.com"
     ]
-    /// AI 对话视图控制器（菜单栏弹出）
-    private var aiChatVC: AIChatViewController?
     /// 书签列表（长按GitHub收藏，长按CF打开）
     private var bookmarks: [String] = []
     private let bookmarksKey = "savedBookmarks"
@@ -396,10 +394,10 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     @objc private func tabLongPressed(_ gesture: UILongPressGestureRecognizer) {
         guard gesture.state == .began, let btn = gesture.view as? UIButton else { return }
         switch btn.tag {
-        case 0: saveBookmark()       // GitHub：收藏当前页面
+        case 0: openEdgeMenu()       // GitHub：呼出功能菜单
         case 1: clearCurrentSiteCache() // CF：清除当前站点缓存
         case 2: manageWindows()      // Google：管理窗口配置
-        case 3: openBookmarks()      // AI：打开书签列表
+        case 3: openBookmarks()      // YouTube：打开书签列表
         default: break
         }
     }
@@ -1357,7 +1355,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         
         // 初始化功能列表（从UserDefaults读取排序）
         let defaultFunctions: [(String, String, Selector)] = [
-            ("message", "AI 对话", #selector(edgeMenuShowAIChat)),
             ("bookmark", "增加书签", #selector(edgeMenuAddBookmark)),
             ("book", "书签列表", #selector(edgeMenuShowBookmarks)),
             ("clock", "历史记录", #selector(edgeMenuShowHistory)),
@@ -1528,6 +1525,10 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     
     @objc private func closeEdgeMenu() {
         setEdgeMenu(open: false)
+    }
+    
+    @objc private func openEdgeMenu() {
+        setEdgeMenu(open: true)
     }
     
     // MARK: - 边缘菜单功能
@@ -1783,14 +1784,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     @objc private func edgeMenuShowProxy() {
         closeEdgeMenu()
         showProxySettings()
-    }
-    
-    @objc private func edgeMenuShowAIChat() {
-        closeEdgeMenu()
-        let aiVC = AIChatViewController()
-        aiChatVC = aiVC
-        aiVC.modalPresentationStyle = .fullScreen
-        present(aiVC, animated: true)
     }
     
     private func showProxySettings() {
@@ -2440,15 +2433,10 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         let translateDoubleTap = UITapGestureRecognizer(target: self, action: #selector(handleTranslateDoubleTap(_:)))
         translateDoubleTap.numberOfTapsRequired = 2
         translateButton.addGestureRecognizer(translateDoubleTap)
-        // 长按翻译按钮0.8秒→弹出设置菜单
+        // 长按翻译按钮0.2秒→弹出设置菜单
         let translateLongPress = UILongPressGestureRecognizer(target: self, action: #selector(handleTranslateLongPress(_:)))
-        translateLongPress.minimumPressDuration = 0.4
+        translateLongPress.minimumPressDuration = 0.2
         translateButton.addGestureRecognizer(translateLongPress)
-        // 右边缘下滑→功能菜单
-        let edgePan = UIPanGestureRecognizer(target: self, action: #selector(handleEdgeMenuPan(_:)))
-        edgePan.delegate = self
-        edgePan.cancelsTouchesInView = false
-        view.addGestureRecognizer(edgePan)
         // 屏幕底部中央双击→网页内文字搜索
         let bottomCenterDoubleTap = UITapGestureRecognizer(target: self, action: #selector(handleBottomCenterDoubleTap(_:)))
         bottomCenterDoubleTap.numberOfTapsRequired = 2

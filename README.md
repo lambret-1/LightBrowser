@@ -2,8 +2,14 @@
 
 一个基于 WKWebView 的 iOS 浏览器，支持手势导航、多窗口、广告拦截、VLESS 代理、节点测速等功能。
 
-## 当前版本：v15.7
+## 当前版本：v16.17.5
 
+## v16.17.5 更新日志
+- 彻底删除全部 AI 对话相关代码（AIChatViewController、AIModelManager、MarkdownRenderer、ConversationManager、KnowledgeBaseManager、VoiceService、WebAIIntegration），解决 AI 模块导致的应用闪退
+- 功能菜单触发方式迁移：从右边缘下滑改为**长按 GitHub 标签按钮**呼出
+- 翻译按钮长按响应时间从 0.4 秒缩短至 0.2 秒，提升交互响应速度
+- 第4个标签恢复为 YouTube
+- 标签长按功能恢复：GitHub→功能菜单、CF→清除缓存、Google→管理窗口、YouTube→书签列表
 
 ## v15.7 更新日志
 - 应用名称更改为「轻量浏览器」
