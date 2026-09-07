@@ -1102,7 +1102,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     }
     private func switchToTab(index: Int) {
         activeIndex = index
-        DebugLogger.shared.logInfo("切换标签: \(tabTitles[index])")
+        DebugLogger.shared.logInfo("切换标签: \(windowTitles[index])")
         for (i, button) in tabButtons.enumerated() {
             if i == index {
                 button.setTitleColor(.systemBlue, for: .normal)
