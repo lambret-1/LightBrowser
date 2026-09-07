@@ -2,7 +2,13 @@
 
 一个基于 WKWebView 的 iOS 浏览器，支持手势导航、多窗口、广告拦截、VLESS 代理、节点测速等功能。
 
-## 当前版本：v16.17.5
+## 当前版本：v16.17.6
+
+## v16.17.6 更新日志
+- GitHub 翻译词库大幅扩充：从 maboloshi/github-chinese 和 Emilcookie/github-chinese 两个开源项目下载最新 locals.js 词库
+- 解析合并去重后，github_ui.json 从 13,153 条扩充至 26,068 条（新增 12,915 条）
+- 清理 136 条未翻译的无效条目
+- 词库覆盖 GitHub 全站界面元素：菜单栏、按钮、设置页、仓库页、Issue、PR、Actions、Codespaces 等
 
 ## v16.17.5 更新日志
 - 彻底删除全部 AI 对话相关代码（AIChatViewController、AIModelManager、MarkdownRenderer、ConversationManager、KnowledgeBaseManager、VoiceService、WebAIIntegration），解决 AI 模块导致的应用闪退
