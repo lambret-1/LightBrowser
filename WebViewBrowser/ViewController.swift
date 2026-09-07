@@ -223,6 +223,19 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
                 self?.present(alert, animated: true)
             }
         }
+        
+        // 性能优化：标记启动结束
+        PerformanceOptimizer.shared.markLaunchEnd()
+        
+        // 性能优化：DNS预解析常见域名（加快首次访问）
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 1.0) {
+            PerformanceOptimizer.shared.prefetchDNS(domains: [
+                "github.com",
+                "dash.cloudflare.com",
+                "google.com",
+                "youtube.com"
+            ])
+        }
     }
     override var prefersStatusBarHidden: Bool { false }
     override var preferredStatusBarStyle: UIStatusBarStyle { .darkContent }
@@ -1114,6 +1127,10 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         }
         for (i, webView) in webViews.enumerated() {
             webView.isHidden = (i != index)
+            // 性能优化：后台标签页暂停媒体播放，节省电量和内存
+            if i != index {
+                PerformanceOptimizer.shared.optimizeWebViewForBackground(webView)
+            }
         }
         // 更新快照截图显隐
         for imageView in snapshotImageViews {
@@ -4305,6 +4322,10 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             let title = webView.title ?? url.absoluteString
             addToHistory(url: url.absoluteString, title: title)
             DebugLogger.shared.logInfo("网页加载完成: \(url.absoluteString)")
+            // 性能优化：标记网页加载结束
+            if webView === currentWebView {
+                PerformanceOptimizer.shared.markLoadEnd(url: url.absoluteString)
+            }
         }
         // v16.10 自动翻译：页面加载完成后自动翻译
         if webView === currentWebView {
@@ -4337,6 +4358,10 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         guard let url = navigationAction.request.url else {
             decisionHandler(.allow)
             return
+        }
+        // 性能优化：标记网页加载开始
+        if webView === currentWebView {
+            PerformanceOptimizer.shared.markLoadStart()
         }
         // 拦截tel:、sms:、mailto:等系统URL
         let scheme = url.scheme?.lowercased() ?? ""
