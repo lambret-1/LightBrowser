@@ -1102,6 +1102,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     }
     private func switchToTab(index: Int) {
         activeIndex = index
+        DebugLogger.shared.logInfo("切换标签: \(tabTitles[index])")
         for (i, button) in tabButtons.enumerated() {
             if i == index {
                 button.setTitleColor(.systemBlue, for: .normal)
@@ -4303,6 +4304,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         if let url = webView.url, !url.absoluteString.hasPrefix("about:") {
             let title = webView.title ?? url.absoluteString
             addToHistory(url: url.absoluteString, title: title)
+            DebugLogger.shared.logInfo("网页加载完成: \(url.absoluteString)")
         }
         // v16.10 自动翻译：页面加载完成后自动翻译
         if webView === currentWebView {
@@ -4325,9 +4327,11 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     }
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         if let index = webViews.firstIndex(of: webView) { endCustomRefresh(for: index) }
+        DebugLogger.shared.logError("网页加载失败: \(error.localizedDescription), url: \(webView.url?.absoluteString ?? "未知")")
     }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         if let index = webViews.firstIndex(of: webView) { endCustomRefresh(for: index) }
+        DebugLogger.shared.logError("网页导航失败: \(error.localizedDescription), url: \(webView.url?.absoluteString ?? "未知")")
     }
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = navigationAction.request.url else {

@@ -2,7 +2,7 @@ import UIKit
 import WebKit
 
 /// 网页文字查找管理器
-/// 使用 JS TreeWalker 遍历所有文本节点（含代码块），<mark>标签高亮
+/// 使用递归遍历所有文本节点（含代码块），<mark>标签高亮
 class FindInPageManager: NSObject {
     static let shared = FindInPageManager()
     
@@ -40,17 +40,14 @@ class FindInPageManager: NSObject {
         (function() {
             // 1. 清除旧高亮
             var oldMarks = document.querySelectorAll('mark.__browser_find__');
-            oldMarks.forEach(function(el) {
+            for (var i = 0; i < oldMarks.length; i++) {
+                var el = oldMarks[i];
                 var parent = el.parentNode;
+                if (!parent) continue;
                 while (el.firstChild) parent.insertBefore(el.firstChild, el);
                 parent.removeChild(el);
-            });
-            // 合并相邻文本节点
-            document.querySelectorAll('body *').forEach(function(el) {
-                if (el.tagName !== 'SCRIPT' && el.tagName !== 'STYLE') {
-                    el.normalize();
-                }
-            });
+            }
+            if (document.body) document.body.normalize();
             
             // 2. 关键词
             var keyword = \(keywordLiteral);
@@ -60,33 +57,36 @@ class FindInPageManager: NSObject {
             var escaped = keyword.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
             var regex = new RegExp(escaped, 'gi');
             
-            // 4. 用 TreeWalker 遍历所有文本节点
-            var count = 0;
-            var walker = document.createTreeWalker(
-                document.body,
-                NodeFilter.SHOW_TEXT,
-                {
-                    acceptNode: function(node) {
-                        if (!node.textContent || !node.textContent.trim()) return NodeFilter.FILTER_REJECT;
+            // 4. 递归收集所有文本节点
+            var textNodes = [];
+            function collectTextNodes(node) {
+                if (!node) return;
+                if (node.nodeType === 3) {
+                    // 文本节点：排除空节点和script/style内的
+                    if (node.textContent && node.textContent.trim()) {
                         var parent = node.parentElement;
-                        if (!parent) return NodeFilter.FILTER_REJECT;
-                        if (parent.closest('script,style,textarea,mark.__browser_find__')) return NodeFilter.FILTER_REJECT;
-                        return NodeFilter.FILTER_ACCEPT;
+                        if (parent && !parent.closest('script,style,textarea,mark.__browser_find__')) {
+                            textNodes.push(node);
+                        }
+                    }
+                } else if (node.nodeType === 1) {
+                    var tag = node.tagName;
+                    if (tag !== 'SCRIPT' && tag !== 'STYLE' && tag !== 'TEXTAREA') {
+                        for (var i = 0; i < node.childNodes.length; i++) {
+                            collectTextNodes(node.childNodes[i]);
+                        }
                     }
                 }
-            );
-            
-            var textNodes = [];
-            var node;
-            while (node = walker.nextNode()) {
-                textNodes.push(node);
             }
+            collectTextNodes(document.body);
             
             // 5. 处理每个文本节点
-            textNodes.forEach(function(textNode) {
+            var count = 0;
+            for (var ni = 0; ni < textNodes.length; ni++) {
+                var textNode = textNodes[ni];
                 var text = textNode.textContent;
                 regex.lastIndex = 0;
-                if (!regex.test(text)) return;
+                if (!regex.test(text)) continue;
                 
                 var fragment = document.createDocumentFragment();
                 var lastIndex = 0;
@@ -104,14 +104,15 @@ class FindInPageManager: NSObject {
                     fragment.appendChild(mark);
                     count++;
                     lastIndex = regex.lastIndex;
-                    // 防止空匹配导致无限循环
                     if (match.index === regex.lastIndex) regex.lastIndex++;
                 }
                 if (lastIndex < text.length) {
                     fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
                 }
-                textNode.parentNode.replaceChild(fragment, textNode);
-            });
+                if (textNode.parentNode) {
+                    textNode.parentNode.replaceChild(fragment, textNode);
+                }
+            }
             
             // 6. 添加高亮样式
             if (!document.getElementById('__browser_find_style__')) {
@@ -121,14 +122,14 @@ class FindInPageManager: NSObject {
                 document.head.appendChild(style);
             }
             
-            return JSON.stringify({count: count});
+            return JSON.stringify({count: count, nodes: textNodes.length});
         })();
         """
         
         webView.evaluateJavaScript(js) { [weak self] result, error in
             guard let self = self else { return }
             if let error = error {
-                print("FindInPage JS error: \(error.localizedDescription)")
+                DebugLogger.shared.logError("查找JS执行失败: \(error.localizedDescription)")
                 completion(0, 0)
                 return
             }
@@ -138,11 +139,13 @@ class FindInPageManager: NSObject {
                let count = dict["count"] as? Int {
                 self.totalMatches = count
                 self.currentMatchIndex = count > 0 ? 1 : 0
+                DebugLogger.shared.logInfo("查找完成: 关键词=\(keyword), 匹配=\(count), 遍历节点=\(dict["nodes"] ?? 0)")
                 if count > 0 {
                     self.jumpToMatch(in: webView)
                 }
                 completion(self.currentMatchIndex, count)
             } else {
+                DebugLogger.shared.logError("查找结果解析失败: \(result ?? "nil")")
                 completion(0, 0)
             }
         }
@@ -182,11 +185,10 @@ class FindInPageManager: NSObject {
         (function() {
             var marks = document.querySelectorAll('mark.__browser_find__');
             if (marks.length === 0) return;
-            marks.forEach(function(m) { m.classList.remove('active'); });
+            for (var i = 0; i < marks.length; i++) marks[i].classList.remove('active');
             var idx = \(currentMatchIndex - 1);
             if (idx >= 0 && idx < marks.length) {
                 marks[idx].classList.add('active');
-                // 瞬间滚动，无动画
                 var rect = marks[idx].getBoundingClientRect();
                 window.scrollTo(0, window.scrollY + rect.top - window.innerHeight / 2);
             }
@@ -199,20 +201,15 @@ class FindInPageManager: NSObject {
     func clearHighlights(in webView: WKWebView) {
         let js = """
         (function() {
-            // 移除所有高亮mark标签，恢复原始文本
             var marks = document.querySelectorAll('mark.__browser_find__');
-            marks.forEach(function(el) {
+            for (var i = 0; i < marks.length; i++) {
+                var el = marks[i];
                 var parent = el.parentNode;
-                if (!parent) return;
-                // 把mark的子节点移到父节点
-                while (el.firstChild) {
-                    parent.insertBefore(el.firstChild, el);
-                }
+                if (!parent) continue;
+                while (el.firstChild) parent.insertBefore(el.firstChild, el);
                 parent.removeChild(el);
-            });
-            // 合并相邻文本节点
+            }
             if (document.body) document.body.normalize();
-            // 移除样式
             var style = document.getElementById('__browser_find_style__');
             if (style) style.remove();
             return marks.length;
@@ -220,7 +217,7 @@ class FindInPageManager: NSObject {
         """
         webView.evaluateJavaScript(js) { result, error in
             if let error = error {
-                print("clearHighlights error: \(error.localizedDescription)")
+                DebugLogger.shared.logError("清除高亮失败: \(error.localizedDescription)")
             }
         }
         currentKeyword = ""

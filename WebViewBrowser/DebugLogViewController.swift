@@ -10,8 +10,18 @@ class DebugLogViewController: UIViewController {
         super.viewDidLoad()
         title = "调试日志"
         view.backgroundColor = .systemBackground
+        // 添加关闭按钮
+        navigationItem.leftBarButtonItem = UIBarButtonItem(
+            barButtonSystemItem: .done,
+            target: self,
+            action: #selector(closeVC)
+        )
         setupUI()
         loadLog()
+    }
+    
+    @objc private func closeVC() {
+        dismiss(animated: true)
     }
     
     private func setupUI() {
