@@ -2,7 +2,7 @@ import UIKit
 import WebKit
 
 /// 网页文字查找管理器
-/// iOS16+ 优先使用系统原生 findInteraction，iOS14-15 用 JS window.find() 兜底
+/// 使用 JS TreeWalker 遍历所有文本节点（含代码块），<mark>标签高亮
 class FindInPageManager: NSObject {
     static let shared = FindInPageManager()
     
@@ -15,93 +15,109 @@ class FindInPageManager: NSObject {
     /// 总匹配数
     private(set) var totalMatches: Int = 0
     
-    // MARK: - iOS16+ 原生查找
-    
-    /// 显示系统原生查找导航器（iOS16+）
-    @available(iOS 16.0, *)
-    func presentNativeFindNavigator(in webView: WKWebView, initialText: String = "") {
-        guard let interaction = webView.findInteraction else {
-            // fallback 到 JS 方案
-            return
-        }
-        interaction.presentFindNavigator(showingReplace: false)
-        // 系统查找栏会自动处理，不需要额外操作
-    }
-    
-    // MARK: - iOS14-15 JS 兜底查找
+    // MARK: - JS 查找高亮
     
     /// 执行查找并高亮（JS方案）
     func findInWebView(_ webView: WKWebView, keyword: String, completion: @escaping (Int, Int) -> Void) {
-        guard !keyword.isEmpty else {
+        guard !keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             clearHighlights(in: webView)
-            currentKeyword = ""
-            totalMatches = 0
-            currentMatchIndex = 0
             completion(0, 0)
             return
         }
         
         currentKeyword = keyword
         
-        // 注入查找JS
+        // 安全转义关键词为 JS 字符串字面量
+        let escapedKeyword = keyword
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+            .replacingOccurrences(of: "\t", with: "\\t")
+        let keywordLiteral = "\"\(escapedKeyword)\""
+        
         let js = """
         (function() {
-            // 清除旧高亮
-            document.querySelectorAll('mark.__browser_find__').forEach(function(el) {
+            // 1. 清除旧高亮
+            var oldMarks = document.querySelectorAll('mark.__browser_find__');
+            oldMarks.forEach(function(el) {
                 var parent = el.parentNode;
                 while (el.firstChild) parent.insertBefore(el.firstChild, el);
                 parent.removeChild(el);
-                parent.normalize();
+            });
+            // 合并相邻文本节点
+            document.querySelectorAll('body *').forEach(function(el) {
+                if (el.tagName !== 'SCRIPT' && el.tagName !== 'STYLE') {
+                    el.normalize();
+                }
             });
             
-            var keyword = \(keyword.replacingOccurrences(of: "'", with: "\\'").replacingOccurrences(of: "\n", with: "\\n"));
-            if (!keyword) return JSON.stringify({count: 0});
+            // 2. 关键词
+            var keyword = \(keywordLiteral);
+            if (!keyword || !keyword.trim()) return JSON.stringify({count: 0});
             
-            var count = 0;
+            // 3. 正则转义
             var escaped = keyword.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
             var regex = new RegExp(escaped, 'gi');
             
-            // 遍历所有文本节点（含代码块pre/code内）
-            function walkNodes(node) {
-                if (node.nodeType === 3) {
-                    var text = node.textContent;
-                    regex.lastIndex = 0;
-                    if (regex.test(text) && node.parentElement && 
-                        !node.parentElement.closest('script,style,textarea,mark.__browser_find__')) {
-                        var fragment = document.createDocumentFragment();
-                        var lastIndex = 0;
-                        regex.lastIndex = 0;
-                        var match;
-                        while ((match = regex.exec(text)) !== null) {
-                            if (match.index > lastIndex) {
-                                fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
-                            }
-                            var mark = document.createElement('mark');
-                            mark.className = '__browser_find__';
-                            mark.textContent = match[0];
-                            mark.dataset.index = count;
-                            fragment.appendChild(mark);
-                            count++;
-                            lastIndex = regex.lastIndex;
-                        }
-                        if (lastIndex < text.length) {
-                            fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
-                        }
-                        node.parentNode.replaceChild(fragment, node);
-                    }
-                } else if (node.nodeType === 1 && node.tagName !== 'SCRIPT' && node.tagName !== 'STYLE') {
-                    for (var i = node.childNodes.length - 1; i >= 0; i--) {
-                        walkNodes(node.childNodes[i]);
+            // 4. 用 TreeWalker 遍历所有文本节点
+            var count = 0;
+            var walker = document.createTreeWalker(
+                document.body,
+                NodeFilter.SHOW_TEXT,
+                {
+                    acceptNode: function(node) {
+                        if (!node.textContent || !node.textContent.trim()) return NodeFilter.FILTER_REJECT;
+                        var parent = node.parentElement;
+                        if (!parent) return NodeFilter.FILTER_REJECT;
+                        if (parent.closest('script,style,textarea,mark.__browser_find__')) return NodeFilter.FILTER_REJECT;
+                        return NodeFilter.FILTER_ACCEPT;
                     }
                 }
-            }
-            walkNodes(document.body);
+            );
             
-            // 添加高亮样式
+            var textNodes = [];
+            var node;
+            while (node = walker.nextNode()) {
+                textNodes.push(node);
+            }
+            
+            // 5. 处理每个文本节点
+            textNodes.forEach(function(textNode) {
+                var text = textNode.textContent;
+                regex.lastIndex = 0;
+                if (!regex.test(text)) return;
+                
+                var fragment = document.createDocumentFragment();
+                var lastIndex = 0;
+                regex.lastIndex = 0;
+                var match;
+                
+                while ((match = regex.exec(text)) !== null) {
+                    if (match.index > lastIndex) {
+                        fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+                    }
+                    var mark = document.createElement('mark');
+                    mark.className = '__browser_find__';
+                    mark.textContent = match[0];
+                    mark.dataset.findIndex = count;
+                    fragment.appendChild(mark);
+                    count++;
+                    lastIndex = regex.lastIndex;
+                    // 防止空匹配导致无限循环
+                    if (match.index === regex.lastIndex) regex.lastIndex++;
+                }
+                if (lastIndex < text.length) {
+                    fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+                }
+                textNode.parentNode.replaceChild(fragment, textNode);
+            });
+            
+            // 6. 添加高亮样式
             if (!document.getElementById('__browser_find_style__')) {
                 var style = document.createElement('style');
                 style.id = '__browser_find_style__';
-                style.textContent = 'mark.__browser_find__{background:#ffeb3b!important;color:inherit!important;padding:0!important;border-radius:2px}mark.__browser_find__.active{background:#ff9800!important;outline:2px solid #f57c00!important}';
+                style.textContent = 'mark.__browser_find__{background:#ffeb3b!important;color:inherit!important;padding:0 1px!important;border-radius:2px}mark.__browser_find__.active{background:#ff9800!important;outline:2px solid #f57c00!important}';
                 document.head.appendChild(style);
             }
             
@@ -109,8 +125,13 @@ class FindInPageManager: NSObject {
         })();
         """
         
-        webView.evaluateJavaScript(js) { [weak self] result, _ in
+        webView.evaluateJavaScript(js) { [weak self] result, error in
             guard let self = self else { return }
+            if let error = error {
+                print("FindInPage JS error: \(error.localizedDescription)")
+                completion(0, 0)
+                return
+            }
             if let jsonStr = result as? String,
                let data = jsonStr.data(using: .utf8),
                let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -176,11 +197,14 @@ class FindInPageManager: NSObject {
     func clearHighlights(in webView: WKWebView) {
         let js = """
         (function() {
-            document.querySelectorAll('mark.__browser_find__').forEach(function(el) {
+            var marks = document.querySelectorAll('mark.__browser_find__');
+            marks.forEach(function(el) {
                 var parent = el.parentNode;
                 while (el.firstChild) parent.insertBefore(el.firstChild, el);
                 parent.removeChild(el);
-                parent.normalize();
+            });
+            document.querySelectorAll('body *').forEach(function(el) {
+                if (el.tagName !== 'SCRIPT' && el.tagName !== 'STYLE') el.normalize();
             });
             var style = document.getElementById('__browser_find_style__');
             if (style) style.remove();
