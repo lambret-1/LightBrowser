@@ -1,6 +1,7 @@
 import UIKit
 
 /// 底部查找栏（iOS14-15 JS兜底方案使用，iOS16+用系统原生查找栏）
+/// 支持键盘跟随：键盘弹出时查找栏自动上移到键盘顶部
 class FindBarView: UIView {
     // MARK: - 回调
     var onSearch: ((String) -> Void)?
@@ -56,19 +57,24 @@ class FindBarView: UIView {
         return btn
     }()
     
-    private var hideConstraint: NSLayoutConstraint!
-    private var showConstraint: NSLayoutConstraint!
+    private var bottomConstraint: NSLayoutConstraint!
     private var isVisible = false
+    private weak var hostView: UIView?
     
     // MARK: - 初始化
     override init(frame: CGRect) {
         super.init(frame: frame)
         setupUI()
         setupActions()
+        setupKeyboardObservers()
     }
     
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
     
     private func setupUI() {
@@ -107,6 +113,51 @@ class FindBarView: UIView {
         closeButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
     }
     
+    // MARK: - 键盘监听
+    private func setupKeyboardObservers() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillShow(_:)),
+            name: UIResponder.keyboardWillShowNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillHide(_:)),
+            name: UIResponder.keyboardWillHideNotification,
+            object: nil
+        )
+    }
+    
+    @objc private func keyboardWillShow(_ notification: Notification) {
+        guard isVisible, let hostView = hostView else { return }
+        guard let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+        guard let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double else { return }
+        
+        // 转换键盘frame到hostView坐标系
+        let keyboardFrameInView = hostView.convert(keyboardFrame, from: nil)
+        let keyboardTop = hostView.bounds.height - keyboardFrameInView.origin.y
+        
+        // 更新底部约束到键盘顶部
+        bottomConstraint.constant = -keyboardTop
+        
+        UIView.animate(withDuration: duration) {
+            hostView.layoutIfNeeded()
+        }
+    }
+    
+    @objc private func keyboardWillHide(_ notification: Notification) {
+        guard isVisible, let hostView = hostView else { return }
+        guard let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double else { return }
+        
+        // 恢复到底部安全区
+        bottomConstraint.constant = 0
+        
+        UIView.animate(withDuration: duration) {
+            hostView.layoutIfNeeded()
+        }
+    }
+    
     // MARK: - 公共方法
     
     /// 显示查找栏
@@ -119,17 +170,18 @@ class FindBarView: UIView {
             return
         }
         
+        hostView = view
         translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(self)
         
-        hideConstraint = bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: 100)
-        showConstraint = bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
+        // 底部约束（初始在屏幕外下方）
+        bottomConstraint = bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: 100)
         
         NSLayoutConstraint.activate([
             leadingAnchor.constraint(equalTo: view.leadingAnchor),
             trailingAnchor.constraint(equalTo: view.trailingAnchor),
             heightAnchor.constraint(equalToConstant: 52),
-            hideConstraint,
+            bottomConstraint,
         ])
         
         view.layoutIfNeeded()
@@ -137,9 +189,9 @@ class FindBarView: UIView {
         searchTextField.text = initialText
         isVisible = true
         
+        // 动画滑入
         UIView.animate(withDuration: 0.25, animations: {
-            self.hideConstraint.isActive = false
-            self.showConstraint.isActive = true
+            self.bottomConstraint.constant = 0
             view.layoutIfNeeded()
         }) { _ in
             self.searchTextField.becomeFirstResponder()
@@ -156,11 +208,11 @@ class FindBarView: UIView {
         searchTextField.resignFirstResponder()
         
         UIView.animate(withDuration: 0.25, animations: {
-            self.showConstraint.isActive = false
-            self.hideConstraint.isActive = true
-            self.superview?.layoutIfNeeded()
+            self.bottomConstraint.constant = 100
+            self.hostView?.layoutIfNeeded()
         }) { _ in
             self.removeFromSuperview()
+            self.hostView = nil
         }
     }
     
