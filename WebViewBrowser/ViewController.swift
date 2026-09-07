@@ -2338,69 +2338,10 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     
     // MARK: - 独立设置页面
     private func showAppSettings() {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
-        let currentEngine = UserDefaults.standard.string(forKey: "searchEngine") ?? "Google"
-        let addressPos = UserDefaults.standard.string(forKey: "addressBarPosition") ?? "顶部"
-        
-        let alert = UIAlertController(title: "⚙️ 浏览器设置", message: "版本 v\(version)", preferredStyle: .actionSheet)
-        
-        // 版本号
-        alert.addAction(UIAlertAction(title: "ℹ️ 当前版本：v\(version)", style: .default) { _ in
-            self.showToast("当前版本：v\(version)")
-        })
-        
-        // 搜索引擎
-        alert.addAction(UIAlertAction(title: "🔍 搜索引擎（当前：\(currentEngine)）", style: .default) { _ in
-            self.showSearchEngineSelector()
-        })
-        
-        // 地址栏位置
-        alert.addAction(UIAlertAction(title: "📍 地址栏位置（当前：\(addressPos)）", style: .default) { _ in
-            self.showAddressBarPositionSelector()
-        })
-        
-        // 默认浏览器
-        alert.addAction(UIAlertAction(title: "🌐 设置为默认浏览器", style: .default) { _ in
-            self.setAsDefaultBrowser()
-        })
-        
-        // 翻译模式（v16.11.9 支持三种模式显示）
-        let currentMode = TranslateManager.shared.currentMode
-        let modeText: String
-        switch currentMode {
-        case .mixed: modeText = "混合（文字离线+图片在线）"
-        case .online: modeText = "传统在线翻译"
-        case .autoEnhanced: modeText = "自动翻译增强"
-        default: modeText = "混合（文字离线+图片在线）"
-        }
-        alert.addAction(UIAlertAction(title: "🌍 翻译模式（当前：\(modeText)）", style: .default) { _ in
-            self.showTranslateModeSelector()
-        })
-        
-        // 谷歌信任模式（降低人机验证概率）
-        let trustText = googleTrustMode ? "已开启（推荐）" : "已关闭"
-        alert.addAction(UIAlertAction(title: "🛡️ 谷歌信任模式（当前：\(trustText)）", style: .default) { _ in
-            self.showGoogleTrustModeSelector()
-        })
-        
-        // 离线缓存配置
-        alert.addAction(UIAlertAction(title: "💾 离线缓存配置", style: .default) { _ in
-            self.showOfflineCacheSettings()
-        })
-        
-        // Safari式页面快照恢复
-        let snapshotEnabled = PageSnapshotManager.shared.isEnabled
-        let snapshotText = snapshotEnabled ? "已开启" : "已关闭"
-        alert.addAction(UIAlertAction(title: "📸 页面快照恢复（当前：\(snapshotText)）", style: .default) { _ in
-            self.showSnapshotRestoreSelector()
-        })
-        
-        alert.addAction(UIAlertAction(title: "关闭", style: .cancel))
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = self.view
-            popover.sourceRect = CGRect(x: self.view.bounds.midX, y: self.view.bounds.midY, width: 0, height: 0)
-        }
-        present(alert, animated: true)
+        let settingsVC = SettingsViewController()
+        let nav = UINavigationController(rootViewController: settingsVC)
+        nav.modalPresentationStyle = .fullScreen
+        present(nav, animated: true)
     }
     
     // MARK: - Safari式页面快照恢复开关

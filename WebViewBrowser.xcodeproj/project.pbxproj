@@ -20,6 +20,8 @@
 		DEBUGLOG_ID /* DebugLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEBUGLOG_REF /* DebugLogger.swift */; };
 		DEBUGLOGVC_ID /* DebugLogViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEBUGLOGVC_REF /* DebugLogViewController.swift */; };
 		PERFOPT_ID /* PerformanceOptimizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = PERFOPT_REF /* PerformanceOptimizer.swift */; };
+		SETTINGSMGR_ID /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETTINGSMGR_REF /* SettingsManager.swift */; };
+		SETTINGSVC_ID /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETTINGSVC_REF /* SettingsViewController.swift */; };
 		TRANSLATE_ID /* TranslateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = TRANSLATE_REF /* TranslateManager.swift */; };
 		DICT_ID /* en_zh_dict.json in Resources */ = {isa = PBXBuildFile; fileRef = DICT_REF /* en_zh_dict.json */; };
 		GITHUBDICT_ID /* github_dict.json in Resources */ = {isa = PBXBuildFile; fileRef = GITHUBDICT_REF /* github_dict.json */; };
@@ -52,6 +54,8 @@
 		DEBUGLOG_REF /* DebugLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogger.swift; sourceTree = "<group>"; };
 		DEBUGLOGVC_REF /* DebugLogViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogViewController.swift; sourceTree = "<group>"; };
 		PERFOPT_REF /* PerformanceOptimizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceOptimizer.swift; sourceTree = "<group>"; };
+		SETTINGSMGR_REF /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
+		SETTINGSVC_REF /* SettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
 		TRANSLATE_REF /* TranslateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslateManager.swift; sourceTree = "<group>"; };
 		DICT_REF /* en_zh_dict.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = en_zh_dict.json; sourceTree = "<group>"; };
 		GITHUBDICT_REF /* github_dict.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = github_dict.json; sourceTree = "<group>"; };
@@ -118,6 +122,8 @@ APPPROXY_FRAMEWORKS /* Frameworks */ = {
 				DEBUGLOG_REF /* DebugLogger.swift */,
 				DEBUGLOGVC_REF /* DebugLogViewController.swift */,
 				PERFOPT_REF /* PerformanceOptimizer.swift */,
+				SETTINGSMGR_REF /* SettingsManager.swift */,
+				SETTINGSVC_REF /* SettingsViewController.swift */,
 				TRANSLATE_REF /* TranslateManager.swift */,
 				AA45A7582909CA8597A5DCB8 /* TencentTranslateManager.swift */,
 				DICT_REF /* en_zh_dict.json */,
@@ -269,6 +275,8 @@ APPPROXY_TARGET /* AppProxyExtension */ = {
 				DEBUGLOG_ID /* DebugLogger.swift in Sources */,
 				DEBUGLOGVC_ID /* DebugLogViewController.swift in Sources */,
 				PERFOPT_ID /* PerformanceOptimizer.swift in Sources */,
+				SETTINGSMGR_ID /* SettingsManager.swift in Sources */,
+				SETTINGSVC_ID /* SettingsViewController.swift in Sources */,
 				TRANSLATE_ID /* TranslateManager.swift in Sources */,
 				4476EC437D27CD122CB15084 /* TencentTranslateManager.swift in Sources */,
 				FOURLEVELCACHE_ID /* FourLevelCache.swift in Sources */,
