@@ -3754,21 +3754,20 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     }
 
     @objc private func translateTapped() {
-        guard !isTranslating else { return }
-        if isTranslated[activeIndex] {
-            restoreOriginalText()
-            return
-        }
-        // 根据翻译模式执行
-        let mode = TranslateManager.shared.currentMode
-        switch mode {
-        case .local, .alwaysOn, .autoEnhanced:  // v16.11 自动翻译增强默认使用离线翻译
+        // 单击翻译按钮：切换自动翻译增强模式开关
+        let currentMode = TranslateManager.shared.currentMode
+        if currentMode == .autoEnhanced {
+            // 关闭自动翻译增强，切换为混合翻译
+            TranslateManager.shared.setMode(.mixed)
+            showToast("自动翻译已关闭")
+        } else {
+            // 开启自动翻译增强
+            TranslateManager.shared.setMode(.autoEnhanced)
+            showToast("自动翻译已开启")
+            // 立即执行一次翻译
             startLocalTranslation()
-        case .online:
-            startTranslation()
-        case .mixed:
-            startHybridTranslation()
         }
+        updateTranslateButtonState()
     }
     
     // MARK: - 本地翻译（仅JS词库，无自动降级）
@@ -3777,7 +3776,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         let targetIndex = activeIndex
         isTranslating = true
         updateTranslateButtonState()
-        showTranslateToast("正在本地翻译...")
         
         TranslateManager.shared.translateLocalOnly(webView: targetWebView) { [weak self] success, reason in
             guard let self = self else { return }
@@ -3785,9 +3783,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
                 self.isTranslating = false
                 if success {
                     self.isTranslated[targetIndex] = true
-                    self.showTranslateToast("本地翻译完成")
-                } else {
-                    self.showTranslateToast("本地翻译失败：\(reason ?? "未知错误")")
                 }
                 self.updateTranslateButtonState()
             }
@@ -3800,7 +3795,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         let targetIndex = activeIndex
         isTranslating = true
         updateTranslateButtonState()
-        showTranslateToast("正在离线翻译...")
         
         TranslateManager.shared.translateMixed(webView: targetWebView, onlineFallback: { [weak self] in
             DispatchQueue.main.async {
@@ -3813,14 +3807,11 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
                 if success {
                     self.isTranslating = false
                     self.isTranslated[targetIndex] = true
-                    self.showTranslateToast("混合翻译完成（文字离线）")
                     self.updateTranslateButtonState()
                 } else if reason == "已降级在线翻译" {
                     // 已降级到在线翻译，不修改isTranslating，由在线翻译管理
-                    self.showTranslateToast("离线词库无匹配，已切换在线翻译...")
                 } else {
                     self.isTranslating = false
-                    self.showTranslateToast("翻译失败：\(reason ?? "未知错误")")
                     self.updateTranslateButtonState()
                 }
             }
@@ -3835,11 +3826,15 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             return
         }
         translateButton.isEnabled = true
-        if isTranslated[activeIndex] {
+        // 根据自动翻译增强模式显示按钮状态
+        let isAutoEnhanced = TranslateManager.shared.currentMode == .autoEnhanced
+        if isAutoEnhanced {
+            // 自动翻译增强已开启：绿色
             translateButton.backgroundColor = .systemGreen
-            translateButton.setTitle("原", for: .normal)
+            translateButton.setTitle("译", for: .normal)
             translateButton.layer.shadowColor = UIColor.systemGreen.cgColor
         } else {
+            // 自动翻译增强已关闭：默认浅蓝色
             translateButton.backgroundColor = UIColor(red: 0.4, green: 0.7, blue: 1.0, alpha: 1.0)
             translateButton.setTitle("译", for: .normal)
             translateButton.layer.shadowColor = UIColor(red: 0.4, green: 0.7, blue: 1.0, alpha: 1.0).cgColor
@@ -3885,7 +3880,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             guard let self = self else { return }
             if let _ = error {
                 self.isTranslating = false
-                self.showTranslateToast("翻译启动失败")
                 self.updateTranslateButtonState()
                 return
             }
@@ -3894,14 +3888,12 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
                   let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let texts = dict["texts"] as? [String] else {
                 self.isTranslating = false
-                self.showTranslateToast("页面无可翻译内容")
                 self.updateTranslateButtonState()
                 return
             }
             if texts.isEmpty {
                 self.isTranslating = false
                 self.isTranslated[targetIndex] = true
-                self.showTranslateToast("页面无需翻译")
                 self.updateTranslateButtonState()
                 return
             }
@@ -4064,7 +4056,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             }
             self.isTranslated[targetIndex] = false
             self.updateTranslateButtonState()
-            self.showTranslateToast("已还原原文")
         }
     }
     private func showTranslateToast(_ message: String) {
