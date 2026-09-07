@@ -158,7 +158,10 @@ class FindInPageManager: NSObject {
             var idx = \(currentMatchIndex - 1);
             if (idx >= 0 && idx < marks.length) {
                 marks[idx].classList.add('active');
-                marks[idx].scrollIntoView({behavior:'smooth', block:'center'});
+                // 强制滚动到可视区域居中
+                var rect = marks[idx].getBoundingClientRect();
+                var targetY = window.scrollY + rect.top - window.innerHeight / 2 + rect.height / 2;
+                window.scrollTo({top: targetY, behavior: 'smooth'});
             }
         })();
         """
@@ -197,20 +200,30 @@ class FindInPageManager: NSObject {
     func clearHighlights(in webView: WKWebView) {
         let js = """
         (function() {
+            // 移除所有高亮mark标签，恢复原始文本
             var marks = document.querySelectorAll('mark.__browser_find__');
             marks.forEach(function(el) {
                 var parent = el.parentNode;
-                while (el.firstChild) parent.insertBefore(el.firstChild, el);
+                if (!parent) return;
+                // 把mark的子节点移到父节点
+                while (el.firstChild) {
+                    parent.insertBefore(el.firstChild, el);
+                }
                 parent.removeChild(el);
             });
-            document.querySelectorAll('body *').forEach(function(el) {
-                if (el.tagName !== 'SCRIPT' && el.tagName !== 'STYLE') el.normalize();
-            });
+            // 合并相邻文本节点
+            if (document.body) document.body.normalize();
+            // 移除样式
             var style = document.getElementById('__browser_find_style__');
             if (style) style.remove();
+            return marks.length;
         })();
         """
-        webView.evaluateJavaScript(js, completionHandler: nil)
+        webView.evaluateJavaScript(js) { result, error in
+            if let error = error {
+                print("clearHighlights error: \(error.localizedDescription)")
+            }
+        }
         currentKeyword = ""
         totalMatches = 0
         currentMatchIndex = 0

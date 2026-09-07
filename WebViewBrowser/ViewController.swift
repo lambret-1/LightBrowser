@@ -181,11 +181,11 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         setupEdgeMenu()
         // 定制网页长按菜单（汉化复制/粘贴等）
         UIMenuController.shared.menuItems = [
+            UIMenuItem(title: "🔍 查找", action: #selector(customFindInPage(_:))),
             UIMenuItem(title: "复制", action: #selector(customCopy(_:))),
             UIMenuItem(title: "粘贴", action: #selector(customPaste(_:))),
             UIMenuItem(title: "剪切", action: #selector(customCut(_:))),
-            UIMenuItem(title: "全选", action: #selector(customSelectAllText(_:))),
-            UIMenuItem(title: "🔍 查找", action: #selector(customFindInPage(_:)))
+            UIMenuItem(title: "全选", action: #selector(customSelectAllText(_:)))
         ]
         switchToTab(index: 0)
         loadInitialPages()
