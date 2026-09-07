@@ -2784,6 +2784,38 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     @objc private func appDidBecomeActive() {
         // 启动补全：上次关闭未保存完的网页资源
         OfflineCacheManager.shared.completePendingSaves()
+        // 自动检测更新（设置开启且距上次检查超过1小时）
+        autoCheckUpdateIfNeeded()
+    }
+    
+    // MARK: - 自动检测更新
+    private func autoCheckUpdateIfNeeded() {
+        let sm = SettingsManager.shared
+        guard sm.autoCheckUpdate else { return }
+        // 距上次检查超过1小时才检查
+        let now = Date().timeIntervalSince1970
+        if now - sm.lastUpdateCheckTime < 3600 { return }
+        sm.lastUpdateCheckTime = now
+        
+        let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+        SettingsManager.shared.checkForUpdate(repo: "lambret-1/LightBrowser", currentVersion: current) { [weak self] hasUpdate, latest in
+            guard let self = self, hasUpdate, let latest = latest else { return }
+            DispatchQueue.main.async {
+                let alert = UIAlertController(
+                    title: "发现新版本",
+                    message: "最新版本：v\(latest)\n当前版本：v\(current)\n\n下载后请用 TrollStore 安装更新",
+                    preferredStyle: .alert
+                )
+                alert.addAction(UIAlertAction(title: "立即更新", style: .default) { _ in
+                    let ipaURL = "https://github.com/lambret-1/LightBrowser/releases/download/v\(latest)/LightBrowser-v\(latest).ipa"
+                    if let url = URL(string: ipaURL) {
+                        UIApplication.shared.open(url)
+                    }
+                })
+                alert.addAction(UIAlertAction(title: "稍后", style: .cancel))
+                self.present(alert, animated: true)
+            }
+        }
     }
     
     /// 手动保存当前网页到四级离线缓存

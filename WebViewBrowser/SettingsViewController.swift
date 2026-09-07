@@ -136,6 +136,7 @@ class SettingsViewController: UIViewController, UITableViewDelegate, UITableView
             // 关于
             SettingSection(title: "关于", footer: nil, items: [
                 SettingItem(title: "当前版本", subtitle: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "未知", type: .navigation, key: nil, options: nil, action: nil),
+                SettingItem(title: "启动时自动检测更新", subtitle: nil, type: .switchToggle, key: "autoCheckUpdate", options: nil, action: nil),
                 SettingItem(title: "检查更新", subtitle: "对比GitHub最新版本", type: .button, key: nil, options: nil, action: { [weak self] in
                     self?.checkUpdate()
                 }),
@@ -236,6 +237,7 @@ class SettingsViewController: UIViewController, UITableViewDelegate, UITableView
         case "mediaAutoplay": return sm.mediaAutoplayBlocked
         case "bgThrottle": return sm.backgroundAnimationThrottle
         case "memoryClear": return sm.memoryWarningAutoClear
+        case "autoCheckUpdate": return sm.autoCheckUpdate
         default: return false
         }
     }
@@ -249,6 +251,7 @@ class SettingsViewController: UIViewController, UITableViewDelegate, UITableView
         case "mediaAutoplay": sm.mediaAutoplayBlocked = value
         case "bgThrottle": sm.backgroundAnimationThrottle = value
         case "memoryClear": sm.memoryWarningAutoClear = value
+        case "autoCheckUpdate": sm.autoCheckUpdate = value
         default: break
         }
     }

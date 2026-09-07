@@ -21,6 +21,8 @@ class SettingsManager: NSObject {
         static let backgroundAnimationThrottle = "settings_backgroundAnimationThrottle"
         static let memoryWarningAutoClear = "settings_memoryWarningAutoClear"
         static let autoTranslateEnabled = "settings_autoTranslateEnabled"
+        static let autoCheckUpdate = "settings_autoCheckUpdate"
+        static let lastUpdateCheckTime = "settings_lastUpdateCheckTime"
     }
     
     private override init() {
@@ -38,7 +40,8 @@ class SettingsManager: NSObject {
             Keys.mediaAutoplayBlocked: true,
             Keys.backgroundAnimationThrottle: true,
             Keys.memoryWarningAutoClear: true,
-            Keys.autoTranslateEnabled: false
+            Keys.autoTranslateEnabled: false,
+            Keys.autoCheckUpdate: true
         ])
     }
     
@@ -98,6 +101,17 @@ class SettingsManager: NSObject {
     var memoryWarningAutoClear: Bool {
         get { defaults.bool(forKey: Keys.memoryWarningAutoClear) }
         set { defaults.set(newValue, forKey: Keys.memoryWarningAutoClear) }
+    }
+    
+    // MARK: - 更新
+    var autoCheckUpdate: Bool {
+        get { defaults.bool(forKey: Keys.autoCheckUpdate) }
+        set { defaults.set(newValue, forKey: Keys.autoCheckUpdate) }
+    }
+    
+    var lastUpdateCheckTime: Double {
+        get { defaults.double(forKey: Keys.lastUpdateCheckTime) }
+        set { defaults.set(newValue, forKey: Keys.lastUpdateCheckTime) }
     }
     
     // MARK: - 翻译
