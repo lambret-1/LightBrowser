@@ -368,8 +368,16 @@ class SettingsViewController: UIViewController, UITableViewDelegate, UITableView
         showToast("正在检查更新...")
         SettingsManager.shared.checkForUpdate(repo: "lambret-1/LightBrowser", currentVersion: current) { hasUpdate, latest in
             if hasUpdate, let latest = latest {
-                let alert = UIAlertController(title: "发现新版本", message: "最新版本：v\(latest)\n当前版本：v\(current)", preferredStyle: .alert)
-                alert.addAction(UIAlertAction(title: "前往下载", style: .default) { _ in
+                let alert = UIAlertController(title: "发现新版本", message: "最新版本：v\(latest)\n当前版本：v\(current)\n\n下载后请用 TrollStore 安装更新", preferredStyle: .alert)
+                // 直接下载 IPA
+                alert.addAction(UIAlertAction(title: "下载更新", style: .default) { _ in
+                    let ipaURL = "https://github.com/lambret-1/LightBrowser/releases/download/v\(latest)/LightBrowser-v\(latest).ipa"
+                    if let url = URL(string: ipaURL) {
+                        UIApplication.shared.open(url)
+                    }
+                })
+                // 前往 Release 页面
+                alert.addAction(UIAlertAction(title: "查看详情", style: .default) { _ in
                     if let url = URL(string: "https://github.com/lambret-1/LightBrowser/releases") {
                         UIApplication.shared.open(url)
                     }
