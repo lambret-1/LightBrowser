@@ -139,7 +139,7 @@ class FindInPageManager: NSObject {
                 self.totalMatches = count
                 self.currentMatchIndex = count > 0 ? 1 : 0
                 if count > 0 {
-                    self.highlightCurrentMatch(in: webView)
+                    self.jumpToMatch(in: webView)
                 }
                 completion(self.currentMatchIndex, count)
             } else {
@@ -148,27 +148,7 @@ class FindInPageManager: NSObject {
         }
     }
     
-    /// 高亮当前匹配项并滚动到可视区域
-    private func highlightCurrentMatch(in webView: WKWebView) {
-        let js = """
-        (function() {
-            var marks = document.querySelectorAll('mark.__browser_find__');
-            if (marks.length === 0) return;
-            marks.forEach(function(m) { m.classList.remove('active'); });
-            var idx = \(currentMatchIndex - 1);
-            if (idx >= 0 && idx < marks.length) {
-                marks[idx].classList.add('active');
-                // 瞬间滚动到可视区域居中（无动画，响应快）
-                var rect = marks[idx].getBoundingClientRect();
-                var targetY = window.scrollY + rect.top - window.innerHeight / 2 + rect.height / 2;
-                window.scrollTo({top: targetY, behavior: 'auto'});
-            }
-        })();
-        """
-        webView.evaluateJavaScript(js, completionHandler: nil)
-    }
-    
-    /// 下一个匹配项
+    /// 下一个匹配项（单次JS调用：切换高亮+滚动）
     func findNext(in webView: WKWebView, completion: @escaping (Int, Int) -> Void) {
         guard totalMatches > 0 else {
             completion(0, 0)
@@ -178,11 +158,11 @@ class FindInPageManager: NSObject {
         if currentMatchIndex > totalMatches {
             currentMatchIndex = 1
         }
-        highlightCurrentMatch(in: webView)
+        jumpToMatch(in: webView)
         completion(currentMatchIndex, totalMatches)
     }
     
-    /// 上一个匹配项
+    /// 上一个匹配项（单次JS调用：切换高亮+滚动）
     func findPrev(in webView: WKWebView, completion: @escaping (Int, Int) -> Void) {
         guard totalMatches > 0 else {
             completion(0, 0)
@@ -192,8 +172,27 @@ class FindInPageManager: NSObject {
         if currentMatchIndex < 1 {
             currentMatchIndex = totalMatches
         }
-        highlightCurrentMatch(in: webView)
+        jumpToMatch(in: webView)
         completion(currentMatchIndex, totalMatches)
+    }
+    
+    /// 单次JS调用：切换高亮+瞬间滚动到可视区域
+    private func jumpToMatch(in webView: WKWebView) {
+        let js = """
+        (function() {
+            var marks = document.querySelectorAll('mark.__browser_find__');
+            if (marks.length === 0) return;
+            marks.forEach(function(m) { m.classList.remove('active'); });
+            var idx = \(currentMatchIndex - 1);
+            if (idx >= 0 && idx < marks.length) {
+                marks[idx].classList.add('active');
+                // 瞬间滚动，无动画
+                var rect = marks[idx].getBoundingClientRect();
+                window.scrollTo(0, window.scrollY + rect.top - window.innerHeight / 2);
+            }
+        })();
+        """
+        webView.evaluateJavaScript(js, completionHandler: nil)
     }
     
     /// 清除所有高亮

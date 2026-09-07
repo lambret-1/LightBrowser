@@ -4341,6 +4341,32 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         }
         return nil
     }
+    
+    // iOS16+ 完全控制编辑菜单顺序（查找置顶）
+    @available(iOS 16.0, *)
+    func webView(_ webView: WKWebView, editMenuConfigurationForElement elementInfo: WKEditMenuElementInfo, completionHandler: @escaping (UIEditMenuConfiguration?) -> Void) {
+        let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: elementInfo.sourcePoint)
+        // 自定义菜单项，查找放在第一个
+        let findAction = UIAction(title: "🔍 查找", image: UIImage(systemName: "magnifyingglass")) { [weak self] _ in
+            self?.customFindInPage(UIButton())
+        }
+        let copyAction = UIAction(title: "复制", image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in
+            self?.customCopy(UIButton())
+        }
+        let pasteAction = UIAction(title: "粘贴", image: UIImage(systemName: "clipboard")) { [weak self] _ in
+            self?.customPaste(UIButton())
+        }
+        let cutAction = UIAction(title: "剪切", image: UIImage(systemName: "scissors")) { [weak self] _ in
+            self?.customCut(UIButton())
+        }
+        let selectAllAction = UIAction(title: "全选", image: UIImage(systemName: "checkmark.square")) { [weak self] _ in
+            self?.customSelectAllText(UIButton())
+        }
+        config.prependActions = [findAction, copyAction, pasteAction, cutAction, selectAllAction]
+        // 禁用系统默认菜单
+        config.blockedSuggestedActions = [.copy, .paste, .cut, .selectAll, .lookup, .translate, .share]
+        completionHandler(config)
+    }
 
     // MARK: - 菜单汉化
     override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {

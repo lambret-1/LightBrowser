@@ -2,7 +2,12 @@
 
 一个基于 WKWebView 的 iOS 浏览器，支持手势导航、多窗口、广告拦截、VLESS 代理、节点测速等功能。
 
-## 当前版本：v16.17.11
+## 当前版本：v16.17.12
+
+## v16.17.12 更新日志
+- 优化查找跳转速度：findNext/findPrev 与高亮滚动合并为单次JS调用，减少 evaluateJavaScript 延迟
+- 修复查找菜单项不置顶：iOS16+ 使用 WKUIDelegate editMenuConfigurationForElement 完全控制菜单，「🔍 查找」强制第一个，禁用系统默认菜单（copy/paste/cut/lookup/translate/share）
+- iOS14-15 继续使用 UIMenuController + canPerformAction 方案
 
 ## v16.17.11 更新日志
 - 修复查找功能滚动反应迟钝：平滑滚动改为瞬间滚动（behavior:'auto'），点击上一个/下一个立即跳转
