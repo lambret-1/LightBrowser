@@ -4919,7 +4919,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             return
         }
         // v16.17.25：广告请求兜底拦截（NavigationAction层，对付ContentRuleList未覆盖的情况）
-        if adBlockEnabled, !navigationAction.targetFrame?.isMainFrame ?? true {
+        if adBlockEnabled, !(navigationAction.targetFrame?.isMainFrame ?? true) {
             let urlStr = url.absoluteString.lowercased()
             let adKeywords = ["banner", "popup", "popunder", "advert", "adsby", "adsense",
                               "adserver", "adclick", "adimg", "adimage", "admedia",
