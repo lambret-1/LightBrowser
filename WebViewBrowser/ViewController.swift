@@ -4320,6 +4320,12 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         }
     }
     
+    /// WebContent进程被系统终止（内存不足等），不自动刷新，仅记录日志
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        DebugLogger.shared.logError("⚠️ WebKit进程被系统终止，页面已丢失（需手动刷新）")
+        // 不自动刷新，保持白屏状态，由用户手动下拉刷新恢复
+    }
+    
     private func addToHistory(url: String, title: String) {
         var history = browserHistory
         // 去重：移除相同URL的旧记录
