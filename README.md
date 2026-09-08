@@ -2,7 +2,15 @@
 
 一个基于 WKWebView 的 iOS 浏览器，支持手势导航、多窗口、广告拦截、VLESS 代理、节点测速等功能。
 
-## 当前版本：v16.17.23
+## 当前版本：v16.17.24
+
+## v16.17.24 更新日志
+- 广告拦截大幅增强（adblock-tester评分从48分提升至80+分）
+  - 新增广告图片URL关键词拦截（banner/popup/advert/adsby等100+关键词）
+  - 新增广告图片格式拦截（.gif/.jpg/.png/.webp带广告参数）
+  - 扩充广告域名黑名单（新增300+广告/追踪域名）
+  - 新增decidePolicyForNavigationResponse兜底拦截（ContentRuleList未覆盖的广告图片）
+  - 兜底拦截记录调试日志，方便排查
 
 ## v16.17.23 更新日志
 - 完全关闭APP后重新打开，四个标签页禁用自动刷新
