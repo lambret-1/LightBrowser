@@ -11,6 +11,20 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.makeKeyAndVisible()
         self.window = window
     }
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        guard let url = URLContexts.first?.url else { return }
+        DebugLogger.shared.logInfo("通过URL Scheme打开: \(url.absoluteString)")
+        // 处理 lightbrowser://open?url=xxx
+        if url.scheme == "lightbrowser", let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+           let queryItems = components.queryItems,
+           let targetURLString = queryItems.first(where: { $0.name == "url" })?.value,
+           let targetURL = URL(string: targetURLString) {
+            if let navController = window?.rootViewController as? UINavigationController,
+               let viewController = navController.viewControllers.first as? ViewController {
+                viewController.openURLFromExternal(targetURL)
+            }
+        }
+    }
     func sceneDidDisconnect(_ scene: UIScene) {}
     func sceneDidBecomeActive(_ scene: UIScene) {}
     func sceneWillResignActive(_ scene: UIScene) {

@@ -1576,6 +1576,15 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             }
         }
     }
+    
+    // MARK: - 外部URL Scheme打开网页
+    func openURLFromExternal(_ url: URL) {
+        DebugLogger.shared.logInfo("外部唤起打开网页: \(url.absoluteString)")
+        // 在当前标签页打开
+        currentWebView.load(URLRequest(url: url))
+        showToast("正在打开: \(url.host ?? "")")
+    }
+    
     // MARK: - WebView 容器
     private func setupWebViewContainer() {
         webViewContainer = UIView()
@@ -1923,6 +1932,9 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             ("clock", "历史记录", #selector(edgeMenuShowHistory)),
             ("square.and.arrow.down", "下载管理", #selector(edgeMenuShowDownloads)),
             ("square.and.arrow.down.on.square", "保存离线网页", #selector(edgeMenuSaveOffline)),
+            ("doc.richtext", "导出PDF", #selector(edgeMenuExportPDF)),
+            ("plus.app", "添加到主屏幕", #selector(edgeMenuAddToHomeScreen)),
+            ("chevron.left.forwardslash.chevron.right", "查看网页源码", #selector(edgeMenuViewSource)),
             ("photo", "全局图片拦截", #selector(edgeMenuToggleImageBlock)),
             ("globe", "UA 切换", #selector(edgeMenuSwitchUA)),
             ("hand.raised", "广告黑名单", #selector(edgeMenuManageAdBlock)),
@@ -2723,6 +2735,158 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     @objc private func edgeMenuShowCacheManager() {
         closeEdgeMenu()
         showCacheManagerWithStorage()
+    }
+    
+    // MARK: - 导出PDF
+    @objc private func edgeMenuExportPDF() {
+        closeEdgeMenu()
+        exportCurrentPageToPDF()
+    }
+    
+    private func exportCurrentPageToPDF() {
+        guard let webView = currentWebView as? WKWebView else {
+            showToast("当前页面无法导出PDF")
+            return
+        }
+        let title = webView.title ?? "网页导出"
+        showToast("正在生成PDF...")
+        DebugLogger.shared.logInfo("开始导出PDF: \(webView.url?.absoluteString ?? "unknown")")
+        
+        if #available(iOS 14.0, *) {
+            let config = WKPDFConfiguration()
+            webView.createPDF(configuration: config) { [weak self] result in
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success(let pdfData):
+                        let tempDir = FileManager.default.temporaryDirectory
+                        let safeTitle = title.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: ":", with: "_")
+                        let pdfURL = tempDir.appendingPathComponent("\(safeTitle).pdf")
+                        do {
+                            try pdfData.write(to: pdfURL)
+                            DebugLogger.shared.logInfo("PDF生成成功: \(pdfURL.path), 大小: \(pdfData.count) 字节")
+                            let activityVC = UIActivityViewController(activityItems: [pdfURL], applicationActivities: nil)
+                            if let popover = activityVC.popoverPresentationController {
+                                popover.sourceView = self?.view
+                                popover.sourceRect = CGRect(x: (self?.view.bounds.midX)!, y: (self?.view.bounds.midY)!, width: 0, height: 0)
+                            }
+                            self?.present(activityVC, animated: true) {
+                                self?.showToast("PDF生成成功")
+                            }
+                        } catch {
+                            DebugLogger.shared.logError("PDF保存失败: \(error.localizedDescription)")
+                            self?.showToast("PDF保存失败")
+                        }
+                    case .failure(let error):
+                        DebugLogger.shared.logError("PDF生成失败: \(error.localizedDescription)")
+                        self?.showToast("PDF生成失败")
+                    }
+                }
+            }
+        } else {
+            showToast("iOS 14以下不支持PDF导出")
+        }
+    }
+    
+    // MARK: - 添加到主屏幕
+    @objc private func edgeMenuAddToHomeScreen() {
+        closeEdgeMenu()
+        addCurrentPageToHomeScreen()
+    }
+    
+    private func addCurrentPageToHomeScreen() {
+        guard let webView = currentWebView, let url = webView.url else {
+            showToast("当前页面无法添加到主屏幕")
+            return
+        }
+        let title = webView.title ?? url.absoluteString
+        DebugLogger.shared.logInfo("添加到主屏幕: \(url.absoluteString)")
+        
+        // 生成PWA快捷方式HTML
+        let html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-status-bar-style" content="default">
+            <title>\(title)</title>
+            <style>
+                body { font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f5f5f7; }
+                .icon { width: 120px; height: 120px; border-radius: 24px; background: linear-gradient(135deg, #007AFF, #5856D6); display: flex; align-items: center; justify-content: center; color: white; font-size: 48px; margin-bottom: 20px; }
+                .title { font-size: 18px; color: #333; text-align: center; padding: 0 20px; }
+                .hint { font-size: 14px; color: #888; margin-top: 30px; text-align: center; padding: 0 20px; }
+            </style>
+        </head>
+        <body>
+            <div class="icon">🌐</div>
+            <div class="title">\(title)</div>
+            <div class="hint">点击分享按钮 → 添加到主屏幕</div>
+            <script>
+                setTimeout(function() {
+                    window.location.href = "lightbrowser://open?url=\(encodeURIComponent(url.absoluteString))";
+                }, 500);
+            </script>
+        </body>
+        </html>
+        """
+        
+        let tempDir = FileManager.default.temporaryDirectory
+        let safeTitle = title.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: ":", with: "_")
+        let htmlURL = tempDir.appendingPathComponent("\(safeTitle).html")
+        do {
+            try html.write(to: htmlURL, atomically: true, encoding: .utf8)
+            DebugLogger.shared.logInfo("PWA快捷方式生成成功: \(htmlURL.path)")
+            let activityVC = UIActivityViewController(activityItems: [htmlURL], applicationActivities: nil)
+            if let popover = activityVC.popoverPresentationController {
+                popover.sourceView = view
+                popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
+            }
+            present(activityVC, animated: true) {
+                self.showToast("请选择「添加到主屏幕」")
+            }
+        } catch {
+            DebugLogger.shared.logError("PWA生成失败: \(error.localizedDescription)")
+            showToast("生成快捷方式失败")
+        }
+    }
+    
+    // MARK: - 查看网页源码
+    @objc private func edgeMenuViewSource() {
+        closeEdgeMenu()
+        showPageSource()
+    }
+    
+    private func showPageSource() {
+        guard let webView = currentWebView else {
+            showToast("当前页面无法查看源码")
+            return
+        }
+        DebugLogger.shared.logInfo("查看网页源码: \(webView.url?.absoluteString ?? "unknown")")
+        showToast("正在获取源码...")
+        
+        webView.evaluateJavaScript("document.documentElement.outerHTML") { [weak self] result, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    DebugLogger.shared.logError("获取源码失败: \(error.localizedDescription)")
+                    self?.showToast("获取源码失败")
+                    return
+                }
+                guard let html = result as? String else {
+                    self?.showToast("源码为空")
+                    return
+                }
+                DebugLogger.shared.logInfo("源码获取成功，长度: \(html.count)")
+                self?.presentSourceViewer(html: html, title: webView.title ?? "网页源码")
+            }
+        }
+    }
+    
+    private func presentSourceViewer(html: String, title: String) {
+        let sourceVC = SourceCodeViewController(html: html, title: title)
+        let nav = UINavigationController(rootViewController: sourceVC)
+        nav.modalPresentationStyle = .fullScreen
+        present(nav, animated: true)
     }
     
     // MARK: - 独立设置页面
