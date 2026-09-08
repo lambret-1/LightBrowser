@@ -2744,10 +2744,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     }
     
     private func exportCurrentPageToPDF() {
-        guard let webView = currentWebView as? WKWebView else {
-            showToast("当前页面无法导出PDF")
-            return
-        }
+        let webView = currentWebView
         let title = webView.title ?? "网页导出"
         showToast("正在生成PDF...")
         DebugLogger.shared.logInfo("开始导出PDF: \(webView.url?.absoluteString ?? "unknown")")
@@ -2794,12 +2791,16 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     }
     
     private func addCurrentPageToHomeScreen() {
-        guard let webView = currentWebView, let url = webView.url else {
+        let webView = currentWebView
+        guard let url = webView.url else {
             showToast("当前页面无法添加到主屏幕")
             return
         }
         let title = webView.title ?? url.absoluteString
         DebugLogger.shared.logInfo("添加到主屏幕: \(url.absoluteString)")
+        
+        // URL编码
+        let encodedURL = url.absoluteString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? url.absoluteString
         
         // 生成PWA快捷方式HTML
         let html = """
@@ -2824,7 +2825,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             <div class="hint">点击分享按钮 → 添加到主屏幕</div>
             <script>
                 setTimeout(function() {
-                    window.location.href = "lightbrowser://open?url=\(encodeURIComponent(url.absoluteString))";
+                    window.location.href = "lightbrowser://open?url=\(encodedURL)";
                 }, 500);
             </script>
         </body>
@@ -2835,7 +2836,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         let safeTitle = title.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: ":", with: "_")
         let htmlURL = tempDir.appendingPathComponent("\(safeTitle).html")
         do {
-            try html.write(to: htmlURL, atomically: true, encoding: .utf8)
+            try html.write(to: htmlURL, atomically: true, encoding: String.Encoding.utf8)
             DebugLogger.shared.logInfo("PWA快捷方式生成成功: \(htmlURL.path)")
             let activityVC = UIActivityViewController(activityItems: [htmlURL], applicationActivities: nil)
             if let popover = activityVC.popoverPresentationController {
@@ -2858,10 +2859,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     }
     
     private func showPageSource() {
-        guard let webView = currentWebView else {
-            showToast("当前页面无法查看源码")
-            return
-        }
+        let webView = currentWebView
         DebugLogger.shared.logInfo("查看网页源码: \(webView.url?.absoluteString ?? "unknown")")
         showToast("正在获取源码...")
         
