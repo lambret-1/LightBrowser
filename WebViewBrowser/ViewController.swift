@@ -170,6 +170,8 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
+        // v16.17.25：APP启动时重置翻译模式为混合翻译（不自动翻译），用户点击翻译键才开启自动翻译
+        TranslateManager.shared.setMode(.mixed)
         loadCustomConfig()
         checkAndClearCacheIfNeeded()
         setupTabBar()
@@ -4778,6 +4780,91 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         if webView === currentWebView {
             autoTranslateIfNeeded()
         }
+        // v16.17.25：DOM广告元素隐藏（对付同域名动态广告，如adblock-tester）
+        if adBlockEnabled {
+            hideAdDomElements(in: webView)
+        }
+    }
+    
+    // MARK: - DOM广告元素隐藏
+    private func hideAdDomElements(in webView: WKWebView) {
+        let hideAdJS = """
+        (function() {
+            var hiddenCount = 0;
+            // 1. 隐藏常见广告尺寸的元素
+            var adSizes = ['468x60','728x90','300x250','336x280','320x50','320x100','250x250','200x200','160x600','120x600','120x240','180x150','468x60','234x60','125x125','120x90','120x60','88x31'];
+            var allElements = document.querySelectorAll('*');
+            for (var i = 0; i < allElements.length; i++) {
+                var el = allElements[i];
+                var w = el.offsetWidth, h = el.offsetHeight;
+                var size = w + 'x' + h;
+                if (adSizes.indexOf(size) !== -1 && el.tagName !== 'BODY' && el.tagName !== 'HTML') {
+                    el.style.display = 'none';
+                    hiddenCount++;
+                }
+            }
+            // 2. 隐藏包含广告关键词的class/id
+            var adKeywords = ['ad','ads','advert','advertisement','banner','popup','popunder','sponsor','sponsored','promo','promotion','campaign','tracking','tracker','pixel','beacon','analytics','statcounter','hitbox','telemetry','fingerprint','advmaker','doubleclick','googlesyndication','googleadservices','moatads','adform','adblade','pubmatic','openx','rubiconproject','criteo','taboola','outbrain','mgid','scorecardresearch','quantserve','comscore','chartbeat','hotjar','clarity'];
+            var elementsWithClass = document.querySelectorAll('[class],[id]');
+            for (var j = 0; j < elementsWithClass.length; j++) {
+                var el2 = elementsWithClass[j];
+                var cls = (el2.className || '').toString().toLowerCase();
+                var id = (el2.id || '').toString().toLowerCase();
+                for (var k = 0; k < adKeywords.length; k++) {
+                    if ((cls && cls.indexOf(adKeywords[k]) !== -1) || (id && id.indexOf(adKeywords[k]) !== -1)) {
+                        if (el2.style.display !== 'none') {
+                            el2.style.display = 'none';
+                            hiddenCount++;
+                        }
+                        break;
+                    }
+                }
+            }
+            // 3. 隐藏iframe广告
+            var iframes = document.querySelectorAll('iframe');
+            for (var m = 0; m < iframes.length; m++) {
+                var iframe = iframes[m];
+                var src = (iframe.src || '').toLowerCase();
+                var adIframeKeywords = ['doubleclick','googlesyndication','googleadservices','moatads','adform','pubmatic','openx','rubiconproject','criteo','taboola','outbrain','mgid','advmaker','adservice','adserver','adclick'];
+                for (var n = 0; n < adIframeKeywords.length; n++) {
+                    if (src.indexOf(adIframeKeywords[n]) !== -1) {
+                        iframe.style.display = 'none';
+                        hiddenCount++;
+                        break;
+                    }
+                }
+            }
+            // 4. 隐藏包含广告图片的父元素
+            var imgs = document.querySelectorAll('img');
+            for (var p = 0; p < imgs.length; p++) {
+                var img = imgs[p];
+                var imgSrc = (img.src || '').toLowerCase();
+                var imgAlt = (img.alt || '').toLowerCase();
+                var imgKeywords = ['banner','popup','advert','adsby','adsense','adserver','adclick','adimg','adimage','sponsor','sponsored','promo','advmaker','doubleclick','googlesyndication','googleadservices','moatads'];
+                for (var q = 0; q < imgKeywords.length; q++) {
+                    if (imgSrc.indexOf(imgKeywords[q]) !== -1 || imgAlt.indexOf(imgKeywords[q]) !== -1) {
+                        img.style.display = 'none';
+                        hiddenCount++;
+                        // 隐藏父元素（如果是广告容器）
+                        if (img.parentElement && img.parentElement.children.length <= 2) {
+                            img.parentElement.style.display = 'none';
+                            hiddenCount++;
+                        }
+                        break;
+                    }
+                }
+            }
+            return hiddenCount;
+        })();
+        """
+        webView.evaluateJavaScript(hideAdJS) { [weak self] result, error in
+            if let count = result as? Int, count > 0 {
+                DebugLogger.shared.logInfo("DOM广告隐藏: 隐藏了 \(count) 个广告元素 - \(webView.url?.absoluteString ?? "unknown")")
+            }
+            if let error = error {
+                DebugLogger.shared.logError("DOM广告隐藏JS执行失败: \(error.localizedDescription)")
+            }
+        }
     }
     
     /// WebContent进程被系统终止（内存不足等），不自动刷新，仅记录日志
@@ -4830,6 +4917,63 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             UIApplication.shared.open(url)
             showToast("已跳转Safari安装描述文件")
             return
+        }
+        // v16.17.25：广告请求兜底拦截（NavigationAction层，对付ContentRuleList未覆盖的情况）
+        if adBlockEnabled, !navigationAction.targetFrame?.isMainFrame ?? true {
+            let urlStr = url.absoluteString.lowercased()
+            let adKeywords = ["banner", "popup", "popunder", "advert", "adsby", "adsense",
+                              "adserver", "adclick", "adimg", "adimage", "admedia",
+                              "adtech", "adtrack", "adzone", "adunit", "adslot",
+                              "sponsor", "sponsored", "promo", "campaign",
+                              "tracking", "tracker", "pixel", "beacon",
+                              "advmaker", "doubleclick", "googlesyndication",
+                              "googleadservices", "moatads", "adform", "adblade",
+                              "pubmatic", "openx", "rubiconproject", "criteo",
+                              "taboola", "outbrain", "mgid", "scorecardresearch",
+                              "quantserve", "comscore", "chartbeat", "hotjar",
+                              "clarity", "analytics", "statcounter", "adnxs",
+                              "adform", "advertising", "smartadserver", "indexexchange",
+                              "magnite", "spotxchange", "freewheel", "revcontent",
+                              "zergnet", "dianomi", "nativo", "sharethrough",
+                              "adroll", "mathtag", "2mdn", "atdmt", "flashtalking",
+                              "sovrn", "teads", "thetradedesk", "triplelift",
+                              "yieldmo", "adsrvr", "bluekai", "crazyegg",
+                              "demdex", "eloqua", "everesttech", "heapanalytics",
+                              "imrworldwide", "krxd", "marketo", "nielsen",
+                              "omtrdc", "optimizely", "quantcast", "sailthru",
+                              "serving-sys", "sitecatalyst", "tapad", "tellapart",
+                              "truste", "turn", "webtrends", "zeotap",
+                              "exponential", "innovid", "jivox", "kargo",
+                              "narrative", "onetag", "pixfuture", "seedtag",
+                              "zemanta", "agkn", "amgdgt", "bx1x", "coremetrics",
+                              "cquotient", "effectivemeasure", "episerver",
+                              "exelator", "francisdrake", "lendingtree",
+                              "liveintent", "lnkd", "maxmind", "ml314",
+                              "navegg", "px-cloud", "retargetly", "salesforce",
+                              "simpli", "smadex", "stickyadstv", "unrulymedia",
+                              "veinteractive", "vindicosuite", "wunderkind",
+                              "yandex", "2o7", "facebook", "connect.facebook",
+                              "ads.twitter", "analytics.twitter", "ct.pinterest",
+                              "sc-static", "tiktokcdn", "scontent", "ljbkvoe",
+                              "alicdn", "33across", "abtasty", "adcolony",
+                              "addthis", "adkernel", "admixer", "adobedtm",
+                              "adplex", "adreactor", "adsymptotic", "adtelligent",
+                              "adunity", "adversal", "adzerk", "affiliatewindow",
+                              "alexametrics", "amp-analytics", "aniview",
+                              "appboy", "appnexus", "appodeal", "appsflyer",
+                              "atlas", "avocarrot", "awin", "beemray",
+                              "bellmetric", "betrad", "bidswitch", "bizo"]
+            let imageExtensions = [".gif", ".jpg", ".jpeg", ".png", ".webp", ".svg", ".bmp"]
+            let isImageRequest = imageExtensions.contains { urlStr.contains($0) }
+            if isImageRequest {
+                for keyword in adKeywords {
+                    if urlStr.contains(keyword) {
+                        DebugLogger.shared.logInfo("NavigationAction兜底拦截广告请求: \(url.absoluteString)")
+                        decisionHandler(.cancel)
+                        return
+                    }
+                }
+            }
         }
         decisionHandler(.allow)
     }
