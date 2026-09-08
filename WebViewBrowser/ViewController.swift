@@ -64,9 +64,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     private var webViewTopConstraint: NSLayoutConstraint!
     private var webViewBottomConstraint: NSLayoutConstraint!
     private var edgeMenuIsOpen = false
-    private var edgeMenuStartX: CGFloat = 0
-    private var edgeMenuPanStart: CGPoint = .zero
-    private var edgeMenuDidTrigger = false
     // 菜单功能项排序
     private var edgeMenuFunctions: [(icon: String, title: String, action: Selector)] = []
     private var edgeMenuSortMode = false
@@ -2302,52 +2299,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         showCustomAdManager()
     }
     
-    @objc private func edgeMenuClearSiteCache() {
-        closeEdgeMenu()
-        guard let host = currentWebView.url?.host else {
-            showToast("当前页面无域名")
-            return
-        }
-        // 二次确认：防止误删谷歌Cookie导致人机验证
-        let alert = UIAlertController(title: "清除站点缓存", message: "确定要清除 \(host) 的全部缓存吗？\n\n如果是谷歌相关站点，清除后可能需要重新登录并触发人机验证。", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "确认清除", style: .destructive) { _ in
-            self.fourLevelCache.clearCacheForSite(host)
-            // 同时清除WKWebView站点数据（Cookie/LocalStorage）
-            let dataStore = self.currentWebView.configuration.websiteDataStore
-            dataStore.fetchDataRecords(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes()) { records in
-                let targetRecords = records.filter { $0.displayName.contains(host) || host.contains($0.displayName) }
-                dataStore.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), for: targetRecords, completionHandler: {})
-            }
-            self.showToast("已清理 \(host) 缓存")
-            self.currentWebView.reload()
-        })
-        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = self.view
-            popover.sourceRect = CGRect(x: self.view.bounds.midX, y: self.view.bounds.midY, width: 0, height: 0)
-        }
-        present(alert, animated: true)
-    }
-    
-    @objc private func edgeMenuClearAllCache() {
-        closeEdgeMenu()
-        let alert = UIAlertController(title: "清空全部缓存", message: "确定要清空浏览器全部缓存吗？\n\n这将清除所有网站的Cookie、登录状态和离线缓存，谷歌等网站需要重新登录。", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "确认清空", style: .destructive) { _ in
-            self.fourLevelCache.removeAllCachedResponses()
-            // 清除全部WKWebView数据
-            let dataStore = WKWebsiteDataStore.default()
-            dataStore.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: Date(timeIntervalSince1970: 0), completionHandler: {})
-            TranslateManager.shared.clearAllTranslationCache()
-            self.showToast("已清空全部缓存")
-        })
-        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = self.view
-            popover.sourceRect = CGRect(x: self.view.bounds.midX, y: self.view.bounds.midY, width: 0, height: 0)
-        }
-        present(alert, animated: true)
-    }
-    
     @objc private func edgeMenuShowProxy() {
         closeEdgeMenu()
         showProxySettings()
@@ -4235,65 +4186,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         }
         return false
     }
-    @objc private func handleEdgeMenuPan(_ gesture: UIPanGestureRecognizer) {
-        let location = gesture.location(in: view)
-        let translation = gesture.translation(in: view)
-        let velocity = gesture.velocity(in: view)
-        let menuWidth = view.bounds.width * 0.50
-        // 右边缘检测区域
-        let edgeThreshold: CGFloat = 60
-        // 触发阈值：水平偏移15pt + 垂直下滑10pt 同时满足
-        let horizontalThreshold: CGFloat = 15
-        let triggerThreshold: CGFloat = 10
-        // 左滑收起阈值
-        let closeThreshold: CGFloat = 45
-        // 快速滑动速度阈值
-        let fastVelocity: CGFloat = 400
-
-        switch gesture.state {
-        case .began:
-            // 检查起始点是否在右边缘
-            if view.bounds.width - location.x <= edgeThreshold {
-                edgeMenuStartX = edgeMenuLeadingConstraint.constant
-                edgeMenuPanStart = location
-                edgeMenuDidTrigger = false
-            } else {
-                gesture.isEnabled = false
-                gesture.isEnabled = true
-            }
-        case .changed:
-            let dx = edgeMenuPanStart.x - location.x // 向左为正
-            let dy = location.y - edgeMenuPanStart.y // 向下为正
-            let speed = sqrt(velocity.x * velocity.x + velocity.y * velocity.y)
-
-            if edgeMenuIsOpen {
-                // 菜单已打开：左滑超过阈值立即收起
-                if translation.x > closeThreshold || velocity.x > fastVelocity {
-                    edgeMenuDidTrigger = true
-                    setEdgeMenu(open: false)
-                    gesture.isEnabled = false
-                    gesture.isEnabled = true
-                }
-            } else {
-                // 快速轻扫（速度≥400pt/s）：短距离直接呼出
-                let fastSwipe = speed >= fastVelocity && dy > 5
-                // 慢速滑动：需要达到位移阈值
-                let slowTrigger = dx >= horizontalThreshold && dy >= triggerThreshold
-                
-                if !edgeMenuDidTrigger && (fastSwipe || slowTrigger) {
-                    edgeMenuDidTrigger = true
-                    // 弹出速度跟随手指速度：越快动画越短
-                    let animDuration = max(0.1, 0.3 - speed / 3000)
-                    setEdgeMenu(open: true, duration: animDuration)
-                    // 结束当前手势，由动画接管弹出
-                    gesture.isEnabled = false
-                    gesture.isEnabled = true
-                }
-            }
-        default:
-            break
-        }
-    }
 
     // MARK: - 边缘滑动导航（左边缘右滑返回，右边缘左滑前进）
     @objc private func handleEdgeNavigation(_ gesture: UIScreenEdgePanGestureRecognizer) {
@@ -5181,19 +5073,7 @@ extension ViewController: UIGestureRecognizerDelegate {
         return true
     }
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-        // 边缘导航手势直接允许
-        if gestureRecognizer is UIScreenEdgePanGestureRecognizer {
-            return true
-        }
-        guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
-        let location = pan.location(in: view)
-        let velocity = pan.velocity(in: view)
-        // 右边缘下滑手势：起始点在右边缘44pt内，且垂直下滑
-        let isRightEdge = view.bounds.width - location.x <= 44
-        if isRightEdge && velocity.y > 100 {
-            return true
-        }
-        // 其他pan手势（如功能菜单）
+        // 所有手势默认允许
         return true
     }
     // MARK: - 下载文件夹管理
