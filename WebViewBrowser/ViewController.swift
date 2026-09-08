@@ -1149,6 +1149,17 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         let targetURL = windowURLs[index]
         prefetchDNS(for: targetURL)
         preConnect(for: targetURL)
+        // 如果该标签页从未加载过，自动加载（仅首次切换时）
+        if webViews[index].url == nil {
+            if let url = URL(string: targetURL) {
+                DebugLogger.shared.logInfo("首次切换标签 \(windowTitles[index])，自动加载网页")
+                webViews[index].load(URLRequest(url: url))
+                // 隐藏快照截图
+                if snapshotImageViews.indices.contains(index) {
+                    snapshotImageViews[index].isHidden = true
+                }
+            }
+        }
     }
     // MARK: - WebView 容器
     private func setupWebViewContainer() {
@@ -1252,19 +1263,14 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             
             if snapshotEnabled, let snapshot = PageSnapshotManager.shared.getSnapshot(index: index),
                let snapshotImage = PageSnapshotManager.shared.getSnapshotImage(index: index) {
-                // 有快照：先显示截图，后台加载网页
+                // 有快照：只显示截图，不自动加载网页（等待用户手动刷新）
                 setupSnapshotImageView(index: index, image: snapshotImage)
-                // 后台异步加载网页
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    self.webViews[index].load(URLRequest(url: URL(string: snapshot.url) ?? url))
-                }
-            } else {
-                // 无快照：正常加载
-                webViews[index].load(URLRequest(url: url))
             }
-            // 启动时预解析所有窗口DNS
+            // 无快照：保持空白，不自动加载
+            // 启动时预解析所有窗口DNS（不触发网页加载）
             prefetchDNS(for: urlString)
         }
+        DebugLogger.shared.logInfo("APP启动：四个标签页未自动加载，等待用户手动刷新")
     }
     
     /// 设置快照截图覆盖层
@@ -1410,7 +1416,19 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         UIView.animate(withDuration: 0.25) {
             self.webViews[index].scrollView.contentInset.top = 60
         }
-        webViews[index].reload()
+        // 如果网页从未加载过，用load()；已加载过用reload()
+        if webViews[index].url == nil {
+            let urlString = windowURLs[index]
+            if let url = URL(string: urlString) {
+                webViews[index].load(URLRequest(url: url))
+            }
+        } else {
+            webViews[index].reload()
+        }
+        // 加载时隐藏快照截图
+        if snapshotImageViews.indices.contains(index) {
+            snapshotImageViews[index].isHidden = true
+        }
     }
     private func endCustomRefresh(for index: Int) {
         guard isRefreshing[index] else { return }
