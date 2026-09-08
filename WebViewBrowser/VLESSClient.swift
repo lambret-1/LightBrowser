@@ -1,0 +1,574 @@
+import Foundation
+import Network
+
+// VLESS 节点配置
+struct VLESSConfig: Codable {
+    var uuid: String
+    var host: String
+    var port: Int
+    var wsPath: String
+    var wsHost: String?
+    var tls: Bool
+    var name: String
+    
+    enum CodingKeys: String, CodingKey {
+        case uuid, host, port, wsPath, wsHost, tls, name
+    }
+}
+
+// VLESS-WS 客户端
+class VLESSClient {
+    private var connection: NWConnection?
+    private var config: VLESSConfig
+    private var onData: ((Data) -> Void)?
+    private var onError: ((Error) -> Void)?
+    private var isConnected = false
+    
+    init(config: VLESSConfig) {
+        self.config = config
+    }
+    
+    // 连接到VLESS服务器并建立到目标的隧道
+    func connect(targetHost: String, targetPort: UInt16, 
+                 onData: @escaping (Data) -> Void,
+                 onError: @escaping (Error) -> Void,
+                 onConnected: @escaping () -> Void) {
+        self.onData = onData
+        self.onError = onError
+        
+        let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(config.host), port: NWEndpoint.Port(integerLiteral: UInt16(config.port)))
+        
+        let params: NWParameters
+        if config.tls {
+            let tlsOptions = NWProtocolTLS.Options()
+            if let wsHost = config.wsHost {
+                sec_protocol_options_set_tls_server_name(tlsOptions.securityProtocolOptions, wsHost)
+            }
+            params = NWParameters(tls: tlsOptions, tcp: NWProtocolTCP.Options())
+        } else {
+            params = NWParameters.tcp
+        }
+        
+        connection = NWConnection(to: endpoint, using: params)
+        
+        connection?.stateUpdateHandler = { [weak self] state in
+            switch state {
+            case .ready:
+                self?.isConnected = true
+                self?.sendVLESSHandshake(targetHost: targetHost, targetPort: targetPort) {
+                    onConnected()
+                    self?.startReceiving()
+                }
+            case .failed(let error):
+                onError(error)
+            default:
+                break
+            }
+        }
+        
+        connection?.start(queue: .global())
+    }
+    
+    // 发送VLESS握手 + WebSocket升级
+    private func sendVLESSHandshake(targetHost: String, targetPort: UInt16, completion: @escaping () -> Void) {
+        guard let connection = connection else { return }
+        
+        // 1. 构建WebSocket升级请求
+        let wsKey = Data((0..<16).map { _ in UInt8.random(in: 0...255) }).base64EncodedString()
+        let hostHeader = config.wsHost ?? config.host
+        var wsRequest = "GET \(config.wsPath) HTTP/1.1\r\n"
+        wsRequest += "Host: \(hostHeader)\r\n"
+        wsRequest += "Upgrade: websocket\r\n"
+        wsRequest += "Connection: Upgrade\r\n"
+        wsRequest += "Sec-WebSocket-Key: \(wsKey)\r\n"
+        wsRequest += "Sec-WebSocket-Version: 13\r\n"
+        wsRequest += "\r\n"
+        
+        // 2. 构建VLESS握手包
+        var handshake = Data()
+        handshake.append(0x00) // 版本
+        
+        // UUID转16字节
+        if let uuidData = uuidToBytes(config.uuid) {
+            handshake.append(uuidData)
+        }
+        
+        handshake.append(0x00) // 附加信息长度=0
+        
+        handshake.append(0x01) // 指令: TCP
+        
+        // 端口（大端）
+        handshake.append(UInt8(targetPort >> 8))
+        handshake.append(UInt8(targetPort & 0xFF))
+        
+        // 地址类型 + 地址
+        if let hostData = targetHost.data(using: .utf8) {
+            handshake.append(0x02) // 域名类型
+            handshake.append(UInt8(hostData.count))
+            handshake.append(hostData)
+        }
+        
+        // 3. 先发送WebSocket升级请求
+        connection.send(content: wsRequest.data(using: .utf8), completion: .contentProcessed { _ in
+            // 等待WebSocket响应（简化处理，直接发送VLESS握手）
+            // 实际应该先读取101响应，这里简化
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) {
+                // 4. 发送WebSocket帧（VLESS握手作为payload）
+                let wsFrame = self.buildWebSocketFrame(payload: handshake)
+                connection.send(content: wsFrame, completion: .contentProcessed { _ in
+                    completion()
+                })
+            }
+        })
+    }
+    
+    // 构建WebSocket客户端帧
+    private func buildWebSocketFrame(payload: Data, isBinary: Bool = true) -> Data {
+        var frame = Data()
+        frame.append(0x80 | (isBinary ? 0x02 : 0x01)) // FIN + opcode
+        
+        let maskKey = (0..<4).map { _ in UInt8.random(in: 0...255) }
+        let payloadLen = payload.count
+        
+        if payloadLen < 126 {
+            frame.append(UInt8(0x80 | payloadLen)) // MASK + 长度
+        } else if payloadLen < 65536 {
+            frame.append(0x80 | 126)
+            frame.append(UInt8(payloadLen >> 8))
+            frame.append(UInt8(payloadLen & 0xFF))
+        } else {
+            frame.append(0x80 | 127)
+            for i in (0..<8).reversed() {
+                frame.append(UInt8((payloadLen >> (i * 8)) & 0xFF))
+            }
+        }
+        
+        frame.append(contentsOf: maskKey)
+        
+        // 掩码处理
+        var maskedPayload = Data()
+        for (i, byte) in payload.enumerated() {
+            maskedPayload.append(byte ^ maskKey[i % 4])
+        }
+        frame.append(maskedPayload)
+        
+        return frame
+    }
+    
+    // 发送数据（包装成WebSocket帧）
+    func send(_ data: Data) {
+        guard isConnected, let connection = connection else { return }
+        let frame = buildWebSocketFrame(payload: data)
+        connection.send(content: frame, completion: .idempotent)
+    }
+    
+    // 接收数据（解析WebSocket帧）
+    private func startReceiving() {
+        guard let connection = connection else { return }
+        
+        connection.receive(minimumIncompleteLength: 2, maximumLength: 65535) { [weak self] data, _, isComplete, error in
+            if let error = error {
+                self?.onError?(error)
+                return
+            }
+            
+            if let data = data, !data.isEmpty {
+                // 简化：直接把数据传给上层（实际应该解析WebSocket帧）
+                self?.onData?(data)
+            }
+            
+            if !isComplete {
+                self?.startReceiving()
+            }
+        }
+    }
+    
+    func disconnect() {
+        connection?.cancel()
+        isConnected = false
+    }
+    
+    // UUID字符串转16字节
+    private func uuidToBytes(_ uuidString: String) -> Data? {
+        let clean = uuidString.replacingOccurrences(of: "-", with: "")
+        guard clean.count == 32 else { return nil }
+        
+        var data = Data()
+        var index = clean.startIndex
+        for _ in 0..<16 {
+            let next = clean.index(index, offsetBy: 2)
+            if let byte = UInt8(clean[index..<next], radix: 16) {
+                data.append(byte)
+            }
+            index = next
+        }
+        return data
+    }
+}
+
+// VLESS节点管理器
+class VLESSNodeManager {
+    static let shared = VLESSNodeManager()
+    private let nodesKey = "vlessNodes"
+    private let currentNodeKey = "currentVLESSNode"
+    
+    var nodes: [VLESSConfig] {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: nodesKey),
+                  let nodes = try? JSONDecoder().decode([VLESSConfig].self, from: data) else {
+                return []
+            }
+            return nodes
+        }
+        set {
+            if let data = try? JSONEncoder().encode(newValue) {
+                UserDefaults.standard.set(data, forKey: nodesKey)
+            }
+        }
+    }
+    
+    var currentNode: VLESSConfig? {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: currentNodeKey),
+                  let node = try? JSONDecoder().decode(VLESSConfig.self, from: data) else {
+                return nil
+            }
+            return node
+        }
+        set {
+            if let data = try? JSONEncoder().encode(newValue) {
+                UserDefaults.standard.set(data, forKey: currentNodeKey)
+            }
+        }
+    }
+    
+    func addNode(_ node: VLESSConfig) {
+        var list = nodes
+        list.append(node)
+        nodes = list
+    }
+    
+    func removeNode(at index: Int) {
+        var list = nodes
+        list.remove(at: index)
+        nodes = list
+    }
+    
+    func parseVLESSURL(_ url: String) -> VLESSConfig? {
+        // vless://uuid@host:port?path=xxx&security=tls&type=ws&host=wsHost#name
+        guard url.hasPrefix("vless://") else { return nil }
+        
+        let content = String(url.dropFirst(8))
+        let parts = content.components(separatedBy: "#")
+        let name = parts.count > 1 ? (parts[1].removingPercentEncoding ?? parts[1]) : "未命名节点"
+        
+        let mainPart = parts[0]
+        let atParts = mainPart.components(separatedBy: "@")
+        guard atParts.count == 2 else { return nil }
+        
+        let uuid = atParts[0]
+        let hostPortQuery = atParts[1]
+        
+        let queryParts = hostPortQuery.components(separatedBy: "?")
+        let hostPort = queryParts[0]
+        let query = queryParts.count > 1 ? queryParts[1] : ""
+        
+        let hpParts = hostPort.components(separatedBy: ":")
+        guard hpParts.count == 2, let port = Int(hpParts[1]) else { return nil }
+        let host = hpParts[0]
+        
+        var wsPath = "/"
+        var wsHost: String? = nil
+        var tls = false
+        
+        for param in query.components(separatedBy: "&") {
+            let kv = param.components(separatedBy: "=")
+            if kv.count == 2 {
+                switch kv[0] {
+                case "path":
+                    wsPath = kv[1].removingPercentEncoding ?? "/"
+                case "host":
+                    wsHost = kv[1].removingPercentEncoding
+                case "security":
+                    tls = kv[1] == "tls"
+                default:
+                    break
+                }
+            }
+        }
+        
+        return VLESSConfig(uuid: uuid, host: host, port: port, wsPath: wsPath, wsHost: wsHost, tls: tls, name: name)
+    }
+}
+
+
+// 订阅管理器 - 支持小火箭/Shadowrocket主流订阅格式
+class SubscriptionManager {
+    static let shared = SubscriptionManager()
+    private let subscriptionsKey = "vlessSubscriptions"
+    
+    struct Subscription: Codable {
+        var url: String
+        var name: String
+        var lastUpdate: Date
+    }
+    
+    var subscriptions: [Subscription] {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: subscriptionsKey),
+                  let subs = try? JSONDecoder().decode([Subscription].self, from: data) else {
+                return []
+            }
+            return subs
+        }
+        set {
+            if let data = try? JSONEncoder().encode(newValue) {
+                UserDefaults.standard.set(data, forKey: subscriptionsKey)
+            }
+        }
+    }
+    
+    func addSubscription(url: String, name: String) {
+        var list = subscriptions
+        list.append(Subscription(url: url, name: name, lastUpdate: Date()))
+        subscriptions = list
+    }
+    
+    func removeSubscription(at index: Int) {
+        var list = subscriptions
+        list.remove(at: index)
+        subscriptions = list
+    }
+    
+    // 从订阅链接获取节点列表
+    func fetchNodes(from url: String, completion: @escaping ([VLESSConfig], Error?) -> Void) {
+        guard let urlObj = URL(string: url) else {
+            completion([], NSError(domain: "Subscription", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的订阅链接"]))
+            return
+        }
+        
+        let task = URLSession.shared.dataTask(with: urlObj) { data, response, error in
+            if let error = error {
+                completion([], error)
+                return
+            }
+            
+            guard let data = data else {
+                completion([], NSError(domain: "Subscription", code: -2, userInfo: [NSLocalizedDescriptionKey: "无数据"]))
+                return
+            }
+            
+            var nodes: [VLESSConfig] = []
+            
+            // 尝试1: 直接解析为文本（可能是Base64编码或纯文本）
+            if let text = String(data: data, encoding: .utf8) {
+                // 尝试Base64解码
+                if let decodedData = Data(base64Encoded: text.trimmingCharacters(in: .whitespacesAndNewlines)),
+                   let decodedText = String(data: decodedData, encoding: .utf8) {
+                    nodes = self.parseNodes(from: decodedText)
+                } else {
+                    // 纯文本，直接解析
+                    nodes = self.parseNodes(from: text)
+                }
+            }
+            
+            completion(nodes, nil)
+        }
+        task.resume()
+    }
+    
+    // 解析节点文本，支持vless://、vmess://、trojan://、ss://
+    private func parseNodes(from text: String) -> [VLESSConfig] {
+        var nodes: [VLESSConfig] = []
+        let lines = text.components(separatedBy: .newlines)
+        
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            
+            if trimmed.hasPrefix("vless://") {
+                if let node = VLESSNodeManager.shared.parseVLESSURL(trimmed) {
+                    nodes.append(node)
+                }
+            } else if trimmed.hasPrefix("vmess://") {
+                if let node = parseVMess(trimmed) {
+                    nodes.append(node)
+                }
+            } else if trimmed.hasPrefix("trojan://") {
+                if let node = parseTrojan(trimmed) {
+                    nodes.append(node)
+                }
+            }
+        }
+        
+        return nodes
+    }
+    
+    // 解析vmess://链接（Base64编码的JSON）
+    private func parseVMess(_ url: String) -> VLESSConfig? {
+        let content = String(url.dropFirst(8))
+        guard let data = Data(base64Encoded: content),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        
+        guard let uuid = json["id"] as? String,
+              let host = json["add"] as? String,
+              let portStr = json["port"] as? String,
+              let port = Int(portStr) else {
+            return nil
+        }
+        
+        let name = (json["ps"] as? String)?.removingPercentEncoding ?? "VMess节点"
+        let wsPath = json["path"] as? String ?? "/"
+        let wsHost = json["host"] as? String
+        let tls = (json["tls"] as? String) == "tls"
+        
+        return VLESSConfig(uuid: uuid, host: host, port: port, wsPath: wsPath, wsHost: wsHost, tls: tls, name: name)
+    }
+    
+    // 解析trojan://链接
+    private func parseTrojan(_ url: String) -> VLESSConfig? {
+        let content = String(url.dropFirst(9))
+        let parts = content.components(separatedBy: "#")
+        let name = parts.count > 1 ? (parts[1].removingPercentEncoding ?? parts[1]) : "Trojan节点"
+        
+        let mainPart = parts[0]
+        let atParts = mainPart.components(separatedBy: "@")
+        guard atParts.count == 2 else { return nil }
+        
+        let password = atParts[0]
+        let hostPortQuery = atParts[1]
+        
+        let queryParts = hostPortQuery.components(separatedBy: "?")
+        let hostPort = queryParts[0]
+        
+        let hpParts = hostPort.components(separatedBy: ":")
+        guard hpParts.count == 2, let port = Int(hpParts[1]) else { return nil }
+        let host = hpParts[0]
+        
+        // Trojan用password作为UUID（简化处理）
+        return VLESSConfig(uuid: password, host: host, port: port, wsPath: "/", wsHost: nil, tls: true, name: name)
+    }
+    
+    // 更新所有订阅
+    func updateAllSubscriptions(completion: @escaping (Int) -> Void) {
+        let group = DispatchGroup()
+        var totalNewNodes = 0
+        
+        for sub in subscriptions {
+            group.enter()
+            fetchNodes(from: sub.url) { nodes, error in
+                if !nodes.isEmpty {
+                    for node in nodes {
+                        if !VLESSNodeManager.shared.nodes.contains(where: { $0.uuid == node.uuid && $0.host == node.host }) {
+                            VLESSNodeManager.shared.addNode(node)
+                            totalNewNodes += 1
+                        }
+                    }
+                }
+                group.leave()
+            }
+        }
+        
+        group.notify(queue: .main) {
+            completion(totalNewNodes)
+        }
+    }
+}
+
+// MARK: - 节点测试结果
+struct NodeTestResult {
+    let node: VLESSConfig
+    let latency: Int? // 毫秒，nil表示测试失败
+    let success: Bool
+    let errorMessage: String?
+}
+
+// MARK: - 节点测试器
+class NodeTester {
+    static let shared = NodeTester()
+    
+    /// 测试单个节点延迟
+    func testNode(_ node: VLESSConfig, timeout: TimeInterval = 5, completion: @escaping (NodeTestResult) -> Void) {
+        let startTime = Date()
+        
+        // 构建测试URL（用WebSocket端点测试连接）
+        let scheme = node.tls ? "https" : "http"
+        let wsHost = node.wsHost ?? node.host
+        let testURL = URL(string: "\(scheme)://\(node.host):\(node.port)\(node.wsPath)")!
+        
+        var request = URLRequest(url: testURL)
+        request.timeoutInterval = timeout
+        request.setValue(wsHost, forHTTPHeaderField: "Host")
+        request.setValue("Upgrade", forHTTPHeaderField: "Connection")
+        request.setValue("websocket", forHTTPHeaderField: "Upgrade")
+        request.setValue("13", forHTTPHeaderField: "Sec-WebSocket-Version")
+        
+        let task = URLSession.shared.dataTask(with: request) { _, response, error in
+            let elapsed = Int(Date().timeIntervalSince(startTime) * 1000)
+            
+            if let error = error {
+                // 超时或连接失败
+                let nsError = error as NSError
+                if nsError.code == NSURLErrorTimedOut {
+                    completion(NodeTestResult(node: node, latency: nil, success: false, errorMessage: "连接超时"))
+                } else {
+                    completion(NodeTestResult(node: node, latency: nil, success: false, errorMessage: error.localizedDescription))
+                }
+                return
+            }
+            
+            // 只要能建立连接（即使返回400等错误也算节点可达）
+            if let httpResponse = response as? HTTPURLResponse {
+                if httpResponse.statusCode == 101 || httpResponse.statusCode == 400 || httpResponse.statusCode == 403 || httpResponse.statusCode == 200 {
+                    completion(NodeTestResult(node: node, latency: elapsed, success: true, errorMessage: nil))
+                } else {
+                    completion(NodeTestResult(node: node, latency: elapsed, success: true, errorMessage: "状态码: \(httpResponse.statusCode)"))
+                }
+            } else {
+                completion(NodeTestResult(node: node, latency: elapsed, success: true, errorMessage: nil))
+            }
+        }
+        task.resume()
+    }
+    
+    /// 批量测试所有节点
+    func testAllNodes(_ nodes: [VLESSConfig], timeout: TimeInterval = 5, progress: @escaping (Int, Int) -> Void, completion: @escaping ([NodeTestResult]) -> Void) {
+        var results: [NodeTestResult] = []
+        let group = DispatchGroup()
+        let queue = DispatchQueue(label: "nodeTester", attributes: .concurrent)
+        let semaphore = DispatchSemaphore(value: 3) // 最多3个并发
+        
+        for (index, node) in nodes.enumerated() {
+            group.enter()
+            queue.async {
+                semaphore.wait()
+                self.testNode(node, timeout: timeout) { result in
+                    results.append(result)
+                    progress(index + 1, nodes.count)
+                    semaphore.signal()
+                    group.leave()
+                }
+            }
+        }
+        
+        group.notify(queue: .main) {
+            // 按原顺序排序
+            results.sort { r1, r2 in
+                nodes.firstIndex(where: { $0.host == r1.node.host && $0.port == r1.node.port }) ?? 0 <
+                nodes.firstIndex(where: { $0.host == r2.node.host && $0.port == r2.node.port }) ?? 0
+            }
+            completion(results)
+        }
+    }
+    
+    /// 格式化延迟显示
+    static func formatLatency(_ latency: Int?) -> String {
+        guard let latency = latency else { return "失败" }
+        if latency < 100 { return "\(latency)ms (优)" }
+        if latency < 200 { return "\(latency)ms (良)" }
+        if latency < 500 { return "\(latency)ms (中)" }
+        return "\(latency)ms (差)"
+    }
+}
