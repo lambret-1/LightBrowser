@@ -31,3 +31,5 @@ Package.resolved
 *.swp
 ipa.zip
 ipa_output/
+artifact.zip
+*.ipa
