@@ -188,11 +188,33 @@ class SettingsManager: NSObject {
     func checkForUpdate(repo: String, currentVersion: String, completion: @escaping (Bool, String?) -> Void) {
         DebugLogger.shared.logInfo("版本检测开始：本地版本 v\(currentVersion)，仓库 \(repo)")
         let url = URL(string: "https://api.github.com/repos/\(repo)/releases/latest")!
-        URLSession.shared.dataTask(with: url) { data, _, error in
+        var request = URLRequest(url: url)
+        // 禁用缓存，强制拉取最新数据
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.timeoutInterval = 15
+        // GitHub API 要求设置 User-Agent
+        request.setValue("LightBrowser-iOS", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
                 DebugLogger.shared.logError("版本检测请求失败：\(error.localizedDescription)")
                 DispatchQueue.main.async { completion(false, nil) }
                 return
+            }
+            // 检查HTTP状态码
+            if let httpResponse = response as? HTTPURLResponse {
+                DebugLogger.shared.logInfo("版本检测HTTP状态码：\(httpResponse.statusCode)")
+                if httpResponse.statusCode == 403 {
+                    DebugLogger.shared.logError("版本检测失败：GitHub API速率限制(403)")
+                    DispatchQueue.main.async { completion(false, nil) }
+                    return
+                }
+                if httpResponse.statusCode != 200 {
+                    DebugLogger.shared.logError("版本检测失败：HTTP状态码 \(httpResponse.statusCode)")
+                    DispatchQueue.main.async { completion(false, nil) }
+                    return
+                }
             }
             guard let data = data,
                   let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -202,12 +224,27 @@ class SettingsManager: NSObject {
                 return
             }
             let latestVersion = tag.replacingOccurrences(of: "v", with: "")
-            let hasUpdate = latestVersion.compare(currentVersion, options: .numeric) == .orderedDescending
+            // 数字分段版本比较
+            let hasUpdate = self.isVersion(latestVersion, greaterThan: currentVersion)
             // 检查是否有IPA附件
             let assets = dict["assets"] as? [[String: Any]] ?? []
             let hasIPA = assets.contains { ($0["name"] as? String)?.lowercased().hasSuffix(".ipa") ?? false }
             DebugLogger.shared.logInfo("版本检测完成：远程 v\(latestVersion)，本地 v\(currentVersion)，有更新=\(hasUpdate)，IPA附件=\(hasIPA)，附件数=\(assets.count)")
             DispatchQueue.main.async { completion(hasUpdate, latestVersion) }
         }.resume()
+    }
+    
+    /// 数字分段版本比较：v1 > v2 返回 true
+    private func isVersion(_ v1: String, greaterThan v2: String) -> Bool {
+        let parts1 = v1.split(separator: ".").compactMap { Int($0) }
+        let parts2 = v2.split(separator: ".").compactMap { Int($0) }
+        let maxLen = max(parts1.count, parts2.count)
+        for i in 0..<maxLen {
+            let p1 = i < parts1.count ? parts1[i] : 0
+            let p2 = i < parts2.count ? parts2[i] : 0
+            if p1 > p2 { return true }
+            if p1 < p2 { return false }
+        }
+        return false
     }
 }
