@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		APPDELEGATE_ID /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = APPDELEGATE_REF /* AppDelegate.swift */; };
 		VIEWCONTROLLER_ID /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = VIEWCONTROLLER_REF /* ViewController.swift */; };
-				VLESSCLIENT_MAIN_BUILD /* VLESSClient.swift in Sources */,
 		SCENEDELEGATE_ID /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCENEDELEGATE_REF /* SceneDelegate.swift */; };
 		DOWNLOADMANAGER_ID /* DownloadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DOWNLOADMANAGER_REF /* DownloadManager.swift */; };
 		DOWNLOADPANEL_ID /* DownloadPanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DOWNLOADPANEL_REF /* DownloadPanelViewController.swift */; };
