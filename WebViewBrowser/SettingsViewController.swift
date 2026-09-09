@@ -374,7 +374,7 @@ class SettingsViewController: UIViewController, UITableViewDelegate, UITableView
                 let alert = UIAlertController(title: "发现新版本", message: "最新版本：v\(latest)\n当前版本：v\(current)\n\n下载后请用 TrollStore 安装更新", preferredStyle: .alert)
                 // 在浏览器内下载 IPA
                 alert.addAction(UIAlertAction(title: "下载更新", style: .default) { _ in
-                    let ipaURL = "https://github.com/lambret-1/LightBrowser/releases/download/v\(latest)/LightBrowser-v\(latest).ipa"
+                    let ipaURL = "https://github.com/lambret-1/LightBrowser/releases/download/v\(latest)/WebViewBrowser-unsigned-v\(latest).ipa"
                     // 关闭设置页面，通知主界面在浏览器内下载
                     self.dismiss(animated: true) {
                         NotificationCenter.default.post(

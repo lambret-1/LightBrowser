@@ -1961,7 +1961,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             ("square.and.arrow.down", "下载管理", #selector(edgeMenuShowDownloads)),
             ("square.and.arrow.down.on.square", "保存离线", #selector(edgeMenuSaveOffline)),
             ("doc.richtext", "导出PDF", #selector(edgeMenuExportPDF)),
-            ("plus.app", "添加主屏幕", #selector(edgeMenuAddToHomeScreen)),
             ("chevron.left.forwardslash.chevron.right", "网页源码", #selector(edgeMenuViewSource)),
             ("photo", "图片拦截", #selector(edgeMenuToggleImageBlock)),
             ("globe", "UA切换", #selector(edgeMenuSwitchUA)),
@@ -2123,7 +2122,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     }
     
     private func saveMenuOrder() {
-        let defaultTitles = ["增加书签", "书签列表", "历史记录", "下载管理", "保存离线", "导出PDF", "添加主屏幕", "网页源码", "图片拦截", "UA切换", "广告黑名单", "缓存管理", "高级代理", "调试日志", "设置"]
+        let defaultTitles = ["增加书签", "书签列表", "历史记录", "下载管理", "保存离线", "导出PDF", "网页源码", "图片拦截", "UA切换", "广告黑名单", "缓存管理", "高级代理", "调试日志", "设置"]
         var order: [Int] = []
         for item in edgeMenuFunctions {
             if let idx = defaultTitles.firstIndex(of: item.title) {
@@ -2831,74 +2830,6 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             }
         } else {
             showToast("iOS 14以下不支持PDF导出")
-        }
-    }
-    
-    // MARK: - 添加到主屏幕
-    @objc private func edgeMenuAddToHomeScreen() {
-        closeEdgeMenu()
-        addCurrentPageToHomeScreen()
-    }
-    
-    private func addCurrentPageToHomeScreen() {
-        let webView = currentWebView
-        guard let url = webView.url else {
-            showToast("当前页面无法添加到主屏幕")
-            return
-        }
-        let title = webView.title ?? url.absoluteString
-        DebugLogger.shared.logInfo("添加到主屏幕: \(url.absoluteString)")
-        
-        // URL编码
-        let encodedURL = url.absoluteString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? url.absoluteString
-        
-        // 生成PWA快捷方式HTML
-        let html = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <meta name="apple-mobile-web-app-capable" content="yes">
-            <meta name="apple-mobile-web-app-status-bar-style" content="default">
-            <title>\(title)</title>
-            <style>
-                body { font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f5f5f7; }
-                .icon { width: 120px; height: 120px; border-radius: 24px; background: linear-gradient(135deg, #007AFF, #5856D6); display: flex; align-items: center; justify-content: center; color: white; font-size: 48px; margin-bottom: 20px; }
-                .title { font-size: 18px; color: #333; text-align: center; padding: 0 20px; }
-                .hint { font-size: 14px; color: #888; margin-top: 30px; text-align: center; padding: 0 20px; }
-            </style>
-        </head>
-        <body>
-            <div class="icon">🌐</div>
-            <div class="title">\(title)</div>
-            <div class="hint">点击分享按钮 → 添加到主屏幕</div>
-            <script>
-                setTimeout(function() {
-                    window.location.href = "lightbrowser://open?url=\(encodedURL)";
-                }, 500);
-            </script>
-        </body>
-        </html>
-        """
-        
-        let tempDir = FileManager.default.temporaryDirectory
-        let safeTitle = title.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: ":", with: "_")
-        let htmlURL = tempDir.appendingPathComponent("\(safeTitle).html")
-        do {
-            try html.write(to: htmlURL, atomically: true, encoding: String.Encoding.utf8)
-            DebugLogger.shared.logInfo("PWA快捷方式生成成功: \(htmlURL.path)")
-            let activityVC = UIActivityViewController(activityItems: [htmlURL], applicationActivities: nil)
-            if let popover = activityVC.popoverPresentationController {
-                popover.sourceView = view
-                popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 0, height: 0)
-            }
-            present(activityVC, animated: true) {
-                self.showToast("请选择「添加到主屏幕」")
-            }
-        } catch {
-            DebugLogger.shared.logError("PWA生成失败: \(error.localizedDescription)")
-            showToast("生成快捷方式失败")
         }
     }
     

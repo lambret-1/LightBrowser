@@ -184,10 +184,12 @@ class SettingsManager: NSObject {
     }
     
     // MARK: - 版本检测
-    /// 检查 GitHub 仓库最新版本
+    /// 检查 GitHub 仓库最新版本（包含 Draft 草稿 Release）
     func checkForUpdate(repo: String, currentVersion: String, completion: @escaping (Bool, String?) -> Void) {
         DebugLogger.shared.logInfo("版本检测开始：本地版本 v\(currentVersion)，仓库 \(repo)")
-        let url = URL(string: "https://api.github.com/repos/\(repo)/releases/latest")!
+        // 使用 /releases?per_page=1 获取所有Release（包含Draft），取最新一个
+        // /releases/latest 只返回已发布的Release，不包含Draft
+        let url = URL(string: "https://api.github.com/repos/\(repo)/releases?per_page=1")!
         var request = URLRequest(url: url)
         // 禁用缓存，强制拉取最新数据
         request.cachePolicy = .reloadIgnoringLocalCacheData
@@ -217,7 +219,8 @@ class SettingsManager: NSObject {
                 }
             }
             guard let data = data,
-                  let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let releases = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+                  let dict = releases.first,
                   let tag = dict["tag_name"] as? String else {
                 DebugLogger.shared.logError("版本检测解析失败：无有效Release数据")
                 DispatchQueue.main.async { completion(false, nil) }
@@ -229,7 +232,8 @@ class SettingsManager: NSObject {
             // 检查是否有IPA附件
             let assets = dict["assets"] as? [[String: Any]] ?? []
             let hasIPA = assets.contains { ($0["name"] as? String)?.lowercased().hasSuffix(".ipa") ?? false }
-            DebugLogger.shared.logInfo("版本检测完成：远程 v\(latestVersion)，本地 v\(currentVersion)，有更新=\(hasUpdate)，IPA附件=\(hasIPA)，附件数=\(assets.count)")
+            let isDraft = dict["draft"] as? Bool ?? false
+            DebugLogger.shared.logInfo("版本检测完成：远程 v\(latestVersion)（Draft=\(isDraft)），本地 v\(currentVersion)，有更新=\(hasUpdate)，IPA附件=\(hasIPA)，附件数=\(assets.count)")
             DispatchQueue.main.async { completion(hasUpdate, latestVersion) }
         }.resume()
     }
