@@ -59,6 +59,8 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     private var edgeMenuView: UIView!
     private var edgeMenuOverlay: UIButton!
     private var edgeMenuLeadingConstraint: NSLayoutConstraint!
+    private var edgeMenuScrollView: UIScrollView!
+    private var edgeMenuContentStack: UIStackView!
     private var tabBarTopConstraint: NSLayoutConstraint!
     private var tabBarBottomConstraint: NSLayoutConstraint!
     private var webViewTopConstraint: NSLayoutConstraint!
@@ -1868,7 +1870,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     }
     // MARK: - 右边缘下滑功能菜单
     private func setupEdgeMenu() {
-        // 菜单宽度：40%
+        // 菜单宽度：50%
         let menuWidth = view.bounds.width * 0.50
         // 遮罩层：点击菜单外任意区域收回菜单
         edgeMenuOverlay = UIButton(type: .system)
@@ -1916,13 +1918,39 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         sortButton.translatesAutoresizingMaskIntoConstraints = false
         edgeMenuView.addSubview(sortButton)
         
+        // 滚动容器
+        edgeMenuScrollView = UIScrollView()
+        edgeMenuScrollView.showsVerticalScrollIndicator = false
+        edgeMenuScrollView.alwaysBounceVertical = true
+        edgeMenuScrollView.translatesAutoresizingMaskIntoConstraints = false
+        edgeMenuView.addSubview(edgeMenuScrollView)
+        
+        // 内容容器（垂直StackView，每行一个水平StackView）
+        edgeMenuContentStack = UIStackView()
+        edgeMenuContentStack.axis = .vertical
+        edgeMenuContentStack.spacing = 12
+        edgeMenuContentStack.alignment = .fill
+        edgeMenuContentStack.translatesAutoresizingMaskIntoConstraints = false
+        edgeMenuScrollView.addSubview(edgeMenuContentStack)
+        
         NSLayoutConstraint.activate([
             titleLabel.topAnchor.constraint(equalTo: edgeMenuView.safeAreaLayoutGuide.topAnchor, constant: 20),
             titleLabel.leadingAnchor.constraint(equalTo: edgeMenuView.leadingAnchor, constant: 20),
             sortButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
             sortButton.trailingAnchor.constraint(equalTo: edgeMenuView.trailingAnchor, constant: -20),
             sortButton.widthAnchor.constraint(equalToConstant: 30),
-            sortButton.heightAnchor.constraint(equalToConstant: 30)
+            sortButton.heightAnchor.constraint(equalToConstant: 30),
+            // 滚动容器
+            edgeMenuScrollView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 16),
+            edgeMenuScrollView.leadingAnchor.constraint(equalTo: edgeMenuView.leadingAnchor, constant: 10),
+            edgeMenuScrollView.trailingAnchor.constraint(equalTo: edgeMenuView.trailingAnchor, constant: -10),
+            edgeMenuScrollView.bottomAnchor.constraint(equalTo: edgeMenuView.safeAreaLayoutGuide.bottomAnchor, constant: -20),
+            // 内容容器
+            edgeMenuContentStack.topAnchor.constraint(equalTo: edgeMenuScrollView.topAnchor),
+            edgeMenuContentStack.leadingAnchor.constraint(equalTo: edgeMenuScrollView.leadingAnchor),
+            edgeMenuContentStack.trailingAnchor.constraint(equalTo: edgeMenuScrollView.trailingAnchor),
+            edgeMenuContentStack.bottomAnchor.constraint(equalTo: edgeMenuScrollView.bottomAnchor),
+            edgeMenuContentStack.widthAnchor.constraint(equalTo: edgeMenuScrollView.widthAnchor)
         ])
         
         // 初始化功能列表（从UserDefaults读取排序）
@@ -1931,15 +1959,15 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             ("book", "书签列表", #selector(edgeMenuShowBookmarks)),
             ("clock", "历史记录", #selector(edgeMenuShowHistory)),
             ("square.and.arrow.down", "下载管理", #selector(edgeMenuShowDownloads)),
-            ("square.and.arrow.down.on.square", "保存离线网页", #selector(edgeMenuSaveOffline)),
+            ("square.and.arrow.down.on.square", "保存离线", #selector(edgeMenuSaveOffline)),
             ("doc.richtext", "导出PDF", #selector(edgeMenuExportPDF)),
-            ("plus.app", "添加到主屏幕", #selector(edgeMenuAddToHomeScreen)),
-            ("chevron.left.forwardslash.chevron.right", "查看网页源码", #selector(edgeMenuViewSource)),
-            ("photo", "全局图片拦截", #selector(edgeMenuToggleImageBlock)),
-            ("globe", "UA 切换", #selector(edgeMenuSwitchUA)),
+            ("plus.app", "添加主屏幕", #selector(edgeMenuAddToHomeScreen)),
+            ("chevron.left.forwardslash.chevron.right", "网页源码", #selector(edgeMenuViewSource)),
+            ("photo", "图片拦截", #selector(edgeMenuToggleImageBlock)),
+            ("globe", "UA切换", #selector(edgeMenuSwitchUA)),
             ("hand.raised", "广告黑名单", #selector(edgeMenuManageAdBlock)),
             ("internaldrive", "缓存管理", #selector(edgeMenuShowCacheManager)),
-            ("network", "高级代理(AppProxy)", #selector(edgeMenuShowProxy)),
+            ("network", "高级代理", #selector(edgeMenuShowProxy)),
             ("ant.circle", "调试日志", #selector(edgeMenuShowDebugLog)),
             ("gear", "设置", #selector(edgeMenuShowSettings))
         ]
@@ -1958,79 +1986,136 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
             edgeMenuFunctions = defaultFunctions
         }
         
-        // 渲染功能按钮
-        renderEdgeMenuButtons(after: titleLabel)
+        // 渲染功能按钮（图标网格）
+        renderEdgeMenuButtons()
     }
     
-    private func renderEdgeMenuButtons(after titleLabel: UILabel) {
-        // 移除旧按钮
-        for subview in edgeMenuView.subviews {
-            if subview.tag >= 100 && subview.tag < 200 {
-                subview.removeFromSuperview()
+    private func renderEdgeMenuButtons() {
+        // 移除旧内容
+        edgeMenuContentStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        
+        let columns = 2
+        for rowStart in stride(from: 0, to: edgeMenuFunctions.count, by: columns) {
+            let rowStack = UIStackView()
+            rowStack.axis = .horizontal
+            rowStack.spacing = 10
+            rowStack.alignment = .fill
+            rowStack.distribution = .fillEqually
+            
+            for col in 0..<columns {
+                let idx = rowStart + col
+                if idx < edgeMenuFunctions.count {
+                    let item = edgeMenuFunctions[idx]
+                    let card = createMenuIconCard(icon: item.icon, title: item.title, action: item.action, index: idx)
+                    rowStack.addArrangedSubview(card)
+                } else {
+                    // 占位空视图保持布局
+                    let placeholder = UIView()
+                    placeholder.translatesAutoresizingMaskIntoConstraints = false
+                    rowStack.addArrangedSubview(placeholder)
+                }
             }
+            edgeMenuContentStack.addArrangedSubview(rowStack)
         }
-        var previousView: UIView = titleLabel
-        for (idx, item) in edgeMenuFunctions.enumerated() {
-            let button = createMenuButton(icon: item.icon, title: item.title, action: item.action)
-            button.tag = 100 + idx
-            edgeMenuView.addSubview(button)
+    }
+    
+    private func createMenuIconCard(icon: String, title: String, action: Selector, index: Int) -> UIView {
+        let card = UIView()
+        card.backgroundColor = UIColor.secondarySystemBackground
+        card.layer.cornerRadius = 12
+        card.translatesAutoresizingMaskIntoConstraints = false
+        
+        let button = UIButton(type: .system)
+        button.tag = 100 + index
+        button.addTarget(self, action: action, for: .touchUpInside)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(button)
+        
+        let iconView = UIImageView(image: UIImage(systemName: icon))
+        iconView.tintColor = .label
+        iconView.contentMode = .scaleAspectFit
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        button.addSubview(iconView)
+        
+        let label = UILabel()
+        label.text = title
+        label.font = .systemFont(ofSize: 11)
+        label.textColor = .label
+        label.textAlignment = .center
+        label.adjustsFontSizeToFitWidth = true
+        label.minimumScaleFactor = 0.8
+        label.translatesAutoresizingMaskIntoConstraints = false
+        button.addSubview(label)
+        
+        NSLayoutConstraint.activate([
+            card.heightAnchor.constraint(equalToConstant: 72),
+            button.topAnchor.constraint(equalTo: card.topAnchor),
+            button.leadingAnchor.constraint(equalTo: card.leadingAnchor),
+            button.trailingAnchor.constraint(equalTo: card.trailingAnchor),
+            button.bottomAnchor.constraint(equalTo: card.bottomAnchor),
+            iconView.centerXAnchor.constraint(equalTo: button.centerXAnchor),
+            iconView.topAnchor.constraint(equalTo: button.topAnchor, constant: 10),
+            iconView.widthAnchor.constraint(equalToConstant: 26),
+            iconView.heightAnchor.constraint(equalToConstant: 26),
+            label.centerXAnchor.constraint(equalTo: button.centerXAnchor),
+            label.topAnchor.constraint(equalTo: iconView.bottomAnchor, constant: 6),
+            label.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 4),
+            label.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -4)
+        ])
+        
+        // 排序模式下添加拖拽手柄
+        if edgeMenuSortMode {
+            let handle = UIImageView(image: UIImage(systemName: "line.horizontal.3"))
+            handle.tintColor = .systemGray2
+            handle.tag = 400 + index
+            handle.isUserInteractionEnabled = true
+            handle.translatesAutoresizingMaskIntoConstraints = false
+            card.addSubview(handle)
             NSLayoutConstraint.activate([
-                button.topAnchor.constraint(equalTo: previousView.bottomAnchor, constant: previousView == titleLabel ? 20 : 0),
-                button.leadingAnchor.constraint(equalTo: edgeMenuView.leadingAnchor),
-                button.trailingAnchor.constraint(equalTo: edgeMenuView.trailingAnchor),
-                button.heightAnchor.constraint(equalToConstant: 48)
+                handle.topAnchor.constraint(equalTo: card.topAnchor, constant: 4),
+                handle.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -4),
+                handle.widthAnchor.constraint(equalToConstant: 16),
+                handle.heightAnchor.constraint(equalToConstant: 16)
             ])
-            // 排序模式下添加三横线拖拽手柄
-            if edgeMenuSortMode {
-                let handle = UIImageView(image: UIImage(systemName: "line.horizontal.3"))
-                handle.tintColor = .systemGray2
-                handle.tag = 400 + idx
-                handle.isUserInteractionEnabled = true
-                handle.translatesAutoresizingMaskIntoConstraints = false
-                button.addSubview(handle)
-                NSLayoutConstraint.activate([
-                    handle.centerYAnchor.constraint(equalTo: button.centerYAnchor),
-                    handle.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -15),
-                    handle.widthAnchor.constraint(equalToConstant: 20),
-                    handle.heightAnchor.constraint(equalToConstant: 20)
-                ])
-                // 长按手柄开始拖拽
-                let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleMenuDrag(_:)))
-                longPress.minimumPressDuration = 0.2
-                handle.addGestureRecognizer(longPress)
-            }
-            previousView = button
+            let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleMenuDrag(_:)))
+            longPress.minimumPressDuration = 0.2
+            handle.addGestureRecognizer(longPress)
         }
+        
+        return card
     }
     
     @objc private func handleMenuDrag(_ gesture: UILongPressGestureRecognizer) {
-        guard let handle = gesture.view, let button = handle.superview else { return }
-        let idx = button.tag - 100
-        let location = gesture.location(in: edgeMenuView)
+        guard let handle = gesture.view, let card = handle.superview else { return }
+        let button = card.subviews.first { $0 is UIButton } as? UIButton
+        guard let btn = button else { return }
+        let idx = btn.tag - 100
+        let location = gesture.location(in: edgeMenuContentStack)
         
         switch gesture.state {
         case .began:
             draggingIndex = idx
-            draggingStartY = location.y
-            button.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.15)
+            card.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.2)
         case .changed:
             guard let dragIdx = draggingIndex else { return }
-            let itemHeight: CGFloat = 48
-            let startY = edgeMenuView.safeAreaLayoutGuide.layoutFrame.minY + 60
-            let relativeY = location.y - startY
-            var targetIdx = Int(relativeY / itemHeight)
+            // 网格布局：每行2个，行高72+12间距=84
+            let itemHeight: CGFloat = 84
+            var targetIdx = Int(location.y / itemHeight) * 2
+            // 根据x位置判断左右列
+            let halfWidth = edgeMenuContentStack.bounds.width / 2
+            if location.x > halfWidth {
+                targetIdx += 1
+            }
             targetIdx = max(0, min(edgeMenuFunctions.count - 1, targetIdx))
             
             if targetIdx != dragIdx {
                 edgeMenuFunctions.swapAt(dragIdx, targetIdx)
                 draggingIndex = targetIdx
-                if let titleLabel = edgeMenuView.subviews.first(where: { ($0 as? UILabel)?.text == "功能菜单" }) as? UILabel {
-                    renderEdgeMenuButtons(after: titleLabel)
-                }
+                renderEdgeMenuButtons()
             }
         case .ended, .cancelled:
             draggingIndex = nil
-            button.backgroundColor = .clear
+            card.backgroundColor = UIColor.secondarySystemBackground
             saveMenuOrder()
         default:
             break
@@ -2038,7 +2123,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     }
     
     private func saveMenuOrder() {
-        let defaultTitles = ["增加书签", "书签列表", "历史记录", "下载管理", "全局图片拦截", "UA 切换", "广告黑名单", "缓存管理", "高级代理", "设置"]
+        let defaultTitles = ["增加书签", "书签列表", "历史记录", "下载管理", "保存离线", "导出PDF", "添加主屏幕", "网页源码", "图片拦截", "UA切换", "广告黑名单", "缓存管理", "高级代理", "调试日志", "设置"]
         var order: [Int] = []
         for item in edgeMenuFunctions {
             if let idx = defaultTitles.firstIndex(of: item.title) {
@@ -2053,52 +2138,17 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
         if let sortBtn = edgeMenuView.viewWithTag(999) as? UIButton {
             sortBtn.tintColor = edgeMenuSortMode ? .systemBlue : .label
         }
-        if let titleLabel = edgeMenuView.subviews.first(where: { ($0 as? UILabel)?.text == "功能菜单" }) as? UILabel {
-            renderEdgeMenuButtons(after: titleLabel)
-        }
+        renderEdgeMenuButtons()
         if !edgeMenuSortMode {
-            // 保存排序
-            let defaultTitles = ["增加书签", "书签列表", "历史记录", "下载管理", "全局图片拦截", "UA 切换", "广告黑名单", "缓存管理", "高级代理", "设置"]
-            var order: [Int] = []
-            for item in edgeMenuFunctions {
-                if let idx = defaultTitles.firstIndex(of: item.title) {
-                    order.append(idx)
-                }
-            }
-            UserDefaults.standard.set(order, forKey: edgeMenuOrderKey)
+            saveMenuOrder()
             showToast("菜单排序已保存")
         } else {
-            showToast("排序模式：点击上下箭头调整")
+            showToast("排序模式：长按图标拖拽调整")
         }
     }
     
 
 
-    private func createMenuButton(icon: String, title: String, action: Selector) -> UIButton {
-        let button = UIButton(type: .system)
-        let iconView = UIImageView(image: UIImage(systemName: icon))
-        iconView.tintColor = .label
-        iconView.translatesAutoresizingMaskIntoConstraints = false
-        let label = UILabel()
-        label.text = title
-        label.font = .systemFont(ofSize: 16)
-        label.textColor = .label
-        label.translatesAutoresizingMaskIntoConstraints = false
-        button.addSubview(iconView)
-        button.addSubview(label)
-        NSLayoutConstraint.activate([
-            iconView.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 20),
-            iconView.centerYAnchor.constraint(equalTo: button.centerYAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 24),
-            iconView.heightAnchor.constraint(equalToConstant: 24),
-            label.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 15),
-            label.centerYAnchor.constraint(equalTo: button.centerYAnchor)
-        ])
-        button.addTarget(self, action: action, for: .touchUpInside)
-        button.translatesAutoresizingMaskIntoConstraints = false
-        return button
-    }
-    
     @objc private func closeEdgeMenu() {
         setEdgeMenu(open: false)
     }
