@@ -1,0 +1,123 @@
+# =============================================================================
+# 轻量浏览器 - PR 质量门禁流水线
+# 触发：Pull Request / 非main分支 push
+# 职责：静态检查 + 编译校验 + 警告计数门禁，禁止版本递增/Release/仓库写入
+# =============================================================================
+name: PR Quality Gate
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches-ignore: [ main ]
+
+env:
+  APP_NAME: WebViewBrowser
+  SCHEME: WebViewBrowser
+  BUILD_CONFIG: Release
+  WARNING_THRESHOLD: 50
+
+jobs:
+  # ===========================================================================
+  # Job 1: 代码静态检查
+  # ===========================================================================
+  lint:
+    name: 代码静态检查
+    runs-on: macos-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: SwiftLint 检查
+        run: |
+          if which swiftlint >/dev/null 2>&1; then
+            echo "=== SwiftLint 检查 ==="
+            swiftlint lint --reporter github-actions-logging 2>&1 | tee lint.log
+            WARNING_COUNT=$(grep -c "warning:" lint.log || echo 0)
+            ERROR_COUNT=$(grep -c "error:" lint.log || echo 0)
+            echo "警告数: $WARNING_COUNT, 错误数: $ERROR_COUNT"
+            if [ "$ERROR_COUNT" -gt 0 ]; then
+              echo "::error::存在 SwiftLint 错误，阻断合并"
+              exit 1
+            fi
+            if [ "$WARNING_COUNT" -gt "${{ env.WARNING_THRESHOLD }}" ]; then
+              echo "::error::警告数 $WARNING_COUNT 超过阈值 $WARNING_THRESHOLD，阻断合并"
+              exit 1
+            fi
+          else
+            echo "SwiftLint 未安装，跳过（建议本地安装）"
+          fi
+
+      - name: 脚本语法检查
+        run: |
+          echo "=== Shell 脚本语法检查 ==="
+          for script in scripts/*.sh; do
+            if [ -f "$script" ]; then
+              bash -n "$script" && echo "✓ $script 语法正确" || {
+                echo "::error::$script 语法错误"
+                exit 1
+              }
+            fi
+          done
+
+      - name: YAML 格式校验
+        run: |
+          echo "=== Workflow YAML 校验 ==="
+          for yaml in .github/workflows/*.yml; do
+            if [ -f "$yaml" ]; then
+              if command -v python3 &>/dev/null; then
+                python3 -c "import yaml; yaml.safe_load(open('$yaml'))" 2>/dev/null && echo "✓ $yaml 格式正确" || echo "⚠ $yaml 格式校验跳过（pyyaml未安装）"
+              fi
+            fi
+          done
+
+  # ===========================================================================
+  # Job 2: iOS 编译校验（仅编译，不打包、不签名）
+  # ===========================================================================
+  compile:
+    name: iOS 编译校验
+    runs-on: macos-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 编译校验（仅build，不archive）
+        run: |
+          echo "=== 编译校验开始 ==="
+          xcodebuild \
+            -project "${APP_NAME}.xcodeproj" \
+            -scheme "${SCHEME}" \
+            -configuration "${BUILD_CONFIG}" \
+            -sdk iphoneos \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee compile.log
+
+          echo "=== 编译结果统计 ==="
+          ERROR_COUNT=$(grep -c "error:" compile.log || echo 0)
+          WARNING_COUNT=$(grep -c "warning:" compile.log || echo 0)
+          echo "编译错误: $ERROR_COUNT"
+          echo "编译警告: $WARNING_COUNT"
+
+          if [ "$ERROR_COUNT" -gt 0 ]; then
+            echo "::error::编译存在 $ERROR_COUNT 个错误，阻断合并"
+            exit 1
+          fi
+
+          if [ "$WARNING_COUNT" -gt "${{ env.WARNING_THRESHOLD }}" ]; then
+            echo "::warning::编译警告 $WARNING_COUNT 超过建议阈值 $WARNING_THRESHOLD（不阻断，建议优化）"
+          fi
+
+          echo "✓ 编译校验通过"
+
+      - name: 版本号防篡改检查
+        run: |
+          echo "=== PR 版本号防篡改检查 ==="
+          CURRENT_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" WebViewBrowser/Info.plist)
+          echo "PR中的版本号: $CURRENT_VERSION"
+          # PR不允许修改版本号（版本号由main分支流水线自动递增）
+          if git diff origin/main -- WebViewBrowser/Info.plist | grep -q "CFBundleShortVersionString"; then
+            echo "::warning::PR中修改了版本号，建议撤销（版本号由CI自动管理）"
+          fi

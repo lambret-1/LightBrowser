@@ -1,12 +1,18 @@
-name: Build iOS IPA
+# =============================================================================
+# 轻量浏览器 - 生产构建流水线
+# 触发：main 分支 push / 手动触发
+# 产出：未签名 IPA + 制品元数据 JSON → Draft Release（人工审核后发布）
+# 规范：企业级 CI/CD + DevSecOps，零签名、高容错、可审计
+# =============================================================================
+name: Build iOS IPA (Production)
 
 on:
   push:
-    tags: [ 'v*' ]
+    branches: [ main ]
   workflow_dispatch:
     inputs:
       configuration:
-        description: 'Build configuration'
+        description: '构建配置'
         required: true
         default: 'Release'
         type: choice
@@ -14,124 +20,266 @@ on:
           - Debug
           - Release
 
+# 全局环境变量
 env:
   APP_NAME: WebViewBrowser
   SCHEME: WebViewBrowser
   BUILD_CONFIG: Release
+  PLIST_PATH: WebViewBrowser/Info.plist
+  ARTIFACT_RETENTION_DAYS: 30
+
+# 权限：允许创建 Release 和推送 tag
+permissions:
+  contents: write
 
 jobs:
-  build:
-    name: Build IPA
+  # ===========================================================================
+  # Job 1: 前置校验 + 版本递增 + 单元测试
+  # ===========================================================================
+  prebuild:
+    name: 前置校验与版本递增
     runs-on: macos-latest
-    permissions:
-      contents: write
-    timeout-minutes: 30
-
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+      commit_hash: ${{ steps.commit.outputs.commit_hash }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Set build configuration
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "BUILD_CONFIG=${{ github.event.inputs.configuration }}" >> $GITHUB_ENV
-          else
-            echo "BUILD_CONFIG=Release" >> $GITHUB_ENV
-          fi
-          echo "Build configuration: $BUILD_CONFIG"
-
-      - name: 缓存Xcode构建产物
-        uses: actions/cache@v5
+      - name: 检出代码
+        uses: actions/checkout@v4
         with:
-          path: |
-            ~/Library/Developer/Xcode/DerivedData
-          key: ${{ runner.os }}-xcode-${{ hashFiles('WebViewBrowser.xcodeproj/**/*.pbxproj') }}
-          restore-keys: |
-            ${{ runner.os }}-xcode-
+          fetch-depth: 0
+          persist-credentials: true
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-
-      - name: Show project info
+      - name: 脚本执行权限校验
         run: |
+          chmod +x scripts/*.sh
+          ls -la scripts/
+
+      - name: 版本递增逻辑单元测试
+        run: |
+          echo "=== 运行版本递增单元测试 ==="
+          bash scripts/version-bump-test.sh
+
+      - name: 版本合法性预检
+        run: |
+          CURRENT_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST_PATH")
+          echo "当前版本: $CURRENT_VERSION"
+          if [[ ! "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::版本格式非法: $CURRENT_VERSION（必须是三段数字）"
+            exit 1
+          fi
+
+      - name: 执行版本递增
+        id: bump
+        run: |
+          NEW_VERSION=$(bash scripts/version-bump.sh "$PLIST_PATH")
+          echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "新版本: $NEW_VERSION"
+
+      - name: 提交版本变更
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$PLIST_PATH"
+          git commit -m "chore: 版本递增至 v${{ steps.bump.outputs.new_version }}"
+          git push origin main
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          echo "commit_hash=$COMMIT_HASH" >> "$GITHUB_OUTPUT"
+          echo "提交哈希: $COMMIT_HASH"
+
+  # ===========================================================================
+  # Job 2: iOS 编译打包（未签名 IPA）
+  # ===========================================================================
+  build:
+    name: iOS 编译打包（未签名）
+    needs: prebuild
+    runs-on: macos-latest
+    outputs:
+      ipa_path: ${{ steps.package.outputs.ipa_path }}
+      build_duration: ${{ steps.timing.outputs.duration }}
+    steps:
+      - name: 检出代码（含版本递增提交）
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: 构建环境信息
+        run: |
+          echo "Xcode版本:"
           xcodebuild -version
+          echo "SDK列表:"
           xcodebuild -showsdks | grep iphoneos || true
-          echo "---"
-          xcodebuild -list -project "${APP_NAME}.xcodeproj"
-      - name: Build (Unsigned)
+
+      - name: 编译前静态检查（SwiftLint 不阻断）
         run: |
+          if which swiftlint >/dev/null 2>&1; then
+            echo "=== SwiftLint 检查（警告不阻断） ==="
+            swiftlint lint --reporter github-actions-logging || true
+          else
+            echo "SwiftLint 未安装，跳过"
+          fi
+
+      - name: 编译构建（记录耗时）
+        id: timing
+        run: |
+          START_TIME=$(date +%s)
+          echo "=== 开始编译 ==="
           xcodebuild \
             -project "${APP_NAME}.xcodeproj" \
             -scheme "${SCHEME}" \
             -configuration "${BUILD_CONFIG}" \
             -sdk iphoneos \
-            -derivedDataPath build \
+            -derivedDataPath build/DerivedData \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            ONLY_ACTIVE_ARCH=NO \
-            clean build
-
-      - name: Package IPA (Unsigned)
-        run: |
-          APP_PATH="build/Build/Products/${BUILD_CONFIG}-iphoneos/${APP_NAME}.app"
-          if [ ! -d "$APP_PATH" ]; then
-            echo "::error::App not found at $APP_PATH"
-            ls -la build/Build/Products/ || true
+            clean build | tee build.log
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+          echo "duration=$DURATION" >> "$GITHUB_OUTPUT"
+          echo "编译耗时: ${DURATION}秒"
+          if grep -q "error:" build.log; then
+            echo "::error::编译存在错误，请查看日志"
             exit 1
           fi
-          # Ad-hoc 签名（TrollStore 需要）
-          codesign --force --sign - --generate-entitlement-der "$APP_PATH" 2>&1 || true
-          # 打包 IPA
-          mkdir -p Payload
-          cp -r "$APP_PATH" Payload/
-          zip -qr "${APP_NAME}.ipa" Payload
-          rm -rf Payload
-          ls -lah "${APP_NAME}.ipa"
 
-      - name: 读取版本号
+      - name: 打包未签名 IPA
+        id: package
         run: |
-          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" WebViewBrowser/Info.plist)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "当前版本: $VERSION"
+          APP_PATH="build/DerivedData/Build/Products/${BUILD_CONFIG}-iphoneos/${APP_NAME}.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "::error::APP包不存在: $APP_PATH"
+            ls -la build/DerivedData/Build/Products/ || true
+            exit 1
+          fi
+          mkdir -p build/Payload
+          cp -R "$APP_PATH" build/Payload/
+          IPA_NAME="${APP_NAME}-unsigned-v${{ needs.prebuild.outputs.new_version }}.ipa"
+          cd build && zip -qr "../$IPA_NAME" Payload && cd ..
+          echo "ipa_path=$IPA_NAME" >> "$GITHUB_OUTPUT"
+          echo "IPA已生成: $IPA_NAME"
+          ls -lh "$IPA_NAME"
 
-      - name: Upload IPA
-        uses: actions/upload-artifact@v5
+      - name: 上传 IPA 临时 Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.APP_NAME }}-unsigned-ipa
-          path: ${{ env.APP_NAME }}.ipa
-          retention-days: 90
+          name: ios-ipa-${{ needs.prebuild.outputs.new_version }}
+          path: ${{ steps.package.outputs.ipa_path }}
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
-      - name: IPA体积分析
+  # ===========================================================================
+  # Job 3: 制品元数据 + SHA256 + Draft Release
+  # ===========================================================================
+  release:
+    name: 制品元数据与Draft Release
+    needs: [prebuild, build]
+    runs-on: macos-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: 下载 IPA Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-ipa-${{ needs.prebuild.outputs.new_version }}
+
+      - name: 生成制品元数据 JSON
         run: |
-          echo "=== IPA 体积分析 ==="
-          IPA_SIZE=$(du -sh "${{ env.APP_NAME }}.ipa" | cut -f1)
-          echo "IPA 总大小: $IPA_SIZE"
-          rm -rf ipa_analysis
-          mkdir ipa_analysis
-          unzip -q "${{ env.APP_NAME }}.ipa" -d ipa_analysis
-          echo "--- App 包内容（前15大） ---"
-          du -sh ipa_analysis/Payload/*.app/* 2>/dev/null | sort -rh | head -15
-          rm -rf ipa_analysis
+          IPA_FILE="${APP_NAME}-unsigned-v${{ needs.prebuild.outputs.new_version }}.ipa"
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          bash scripts/generate-metadata.sh \
+            "${{ needs.prebuild.outputs.new_version }}" \
+            "${{ needs.prebuild.outputs.commit_hash }}" \
+            "$BUILD_TIME" \
+            "${{ needs.build.outputs.build_duration }}" \
+            "$IPA_FILE" \
+            "build-metadata.json"
 
-      - name: 自动发布Release（仅tag或手动触发）
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+      - name: 计算 IPA SHA256
+        id: sha
+        run: |
+          IPA_FILE="${APP_NAME}-unsigned-v${{ needs.prebuild.outputs.new_version }}.ipa"
+          SHA256=$(shasum -a 256 "$IPA_FILE" | awk '{print $1}')
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "SHA256: $SHA256"
+
+      - name: 检查同版本 Tag 是否存在
+        run: |
+          TAG="v${{ needs.prebuild.outputs.new_version }}"
+          if git ls-remote --tags origin | grep -q "refs/tags/$TAG"; then
+            echo "::error::Tag $TAG 已存在，终止流水线防止覆盖旧Release"
+            exit 1
+          fi
+          echo "Tag $TAG 不存在，可以创建"
+
+      - name: 创建 Git Tag
+        run: |
+          TAG="v${{ needs.prebuild.outputs.new_version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+      - name: 更新 README 更新日志
+        run: |
+          BUILD_TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          bash scripts/update-readme.sh \
+            "README.md" \
+            "${{ needs.prebuild.outputs.new_version }}" \
+            "${{ needs.prebuild.outputs.commit_hash }}" \
+            "$BUILD_TIME" \
+            "${{ steps.sha.outputs.sha256 }}" \
+            "企业级CI/CD流水线重构：版本自动化、制品元数据、Draft Release"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "docs: README更新日志 v${{ needs.prebuild.outputs.new_version }}"
+          git push origin main
+
+      - name: 创建 Draft Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.VERSION }}
-          name: 轻量浏览器 v${{ env.VERSION }}
+          tag_name: v${{ needs.prebuild.outputs.new_version }}
+          name: 轻量浏览器 v${{ needs.prebuild.outputs.new_version }}
+          draft: true
           body: |
-            ## 轻量浏览器 v${{ env.VERSION }}
-            
-            ### 构建信息
-            - 提交: ${{ github.sha }}
-            
+            ## 轻量浏览器 v${{ needs.prebuild.outputs.new_version }}
+
+            ### 制品信息
+            | 项目 | 值 |
+            |------|-----|
+            | 版本 | v${{ needs.prebuild.outputs.new_version }} |
+            | Commit | `${{ needs.prebuild.outputs.commit_hash }}` |
+            | 构建时间 | $(date -u +"%Y-%m-%d %H:%M:%S UTC") |
+            | 构建耗时 | ${{ needs.build.outputs.build_duration }}秒 |
+            | IPA SHA256 | `${{ steps.sha.outputs.sha256 }}` |
+            | 签名状态 | 未签名（供全能签重签名） |
+
             ### 安装说明
             1. 下载下方 IPA 文件
-            2. 使用 TrollStore 安装（免签名）
-            
-            ### 注意
-            - 本版本为未签名 IPA，仅支持 TrollStore 安装
-            - 具体更新内容请查看 commit 记录
+            2. 使用全能签导入重签名
+            3. 安装到 iOS 15+ 设备
+
+            ### 校验方法
+            ```bash
+            shasum -a 256 WebViewBrowser-unsigned-v${{ needs.prebuild.outputs.new_version }}.ipa
+            ```
+            对比上方 SHA256 值，一致则制品完整可信。
+
+            > ⚠️ 本 Release 为 Draft 草稿状态，需人工审核后点击发布。
           files: |
-            ${{ env.APP_NAME }}.ipa
+            ${{ env.APP_NAME }}-unsigned-v${{ needs.prebuild.outputs.new_version }}.ipa
+            build-metadata.json
+          fail_on_unmatched_files: true
+
+      - name: 构建完成摘要
+        run: |
+          echo "## 构建完成摘要" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 版本: v${{ needs.prebuild.outputs.new_version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: ${{ needs.prebuild.outputs.commit_hash }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- SHA256: ${{ steps.sha.outputs.sha256 }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 构建耗时: ${{ needs.build.outputs.build_duration }}秒" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Draft Release已创建，等待人工审核发布" >> "$GITHUB_STEP_SUMMARY"
