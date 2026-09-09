@@ -38,13 +38,17 @@ TMP_FILE=$(mktemp)
 # 标记是否已插入
 INSERTED=0
 while IFS= read -r line || [ -n "$line" ]; do
-    echo "$line" >> "$TMP_FILE"
-    # 在 "## 当前版本" 行之后插入新日志
-    if [ "$INSERTED" -eq 0 ] && [[ "$line" =~ ^##\ 当前版本： ]]; then
-        echo "" >> "$TMP_FILE"
-        echo "$LOG_ENTRY" >> "$TMP_FILE"
-        INSERTED=1
+    # 更新当前版本号行
+    if [[ "$line" =~ ^##\ 当前版本： ]]; then
+        echo "## 当前版本：v${VERSION}" >> "$TMP_FILE"
+        if [ "$INSERTED" -eq 0 ]; then
+            echo "" >> "$TMP_FILE"
+            echo "$LOG_ENTRY" >> "$TMP_FILE"
+            INSERTED=1
+        fi
+        continue
     fi
+    echo "$line" >> "$TMP_FILE"
 done < "$README_PATH"
 
 # 如果没找到插入点，在文件开头插入
