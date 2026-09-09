@@ -416,10 +416,10 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UISc
     @objc private func tabLongPressed(_ gesture: UILongPressGestureRecognizer) {
         guard gesture.state == .began, let btn = gesture.view as? UIButton else { return }
         switch btn.tag {
-        case 0: openEdgeMenu()       // GitHub：呼出功能菜单
-        case 1: clearCurrentSiteCache() // CF：清除当前站点缓存
-        case 2: manageWindows()      // Google：管理窗口配置
-        case 3: openBookmarks()      // YouTube：打开书签列表
+        case 0: break                     // GitHub：无长按功能
+        case 1: clearCurrentSiteCache()   // CF：清除当前站点缓存
+        case 2: manageWindows()           // Google：管理窗口配置
+        case 3: openEdgeMenu()            // YouTube：呼出功能菜单
         default: break
         }
     }
