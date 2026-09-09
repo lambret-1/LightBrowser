@@ -239,12 +239,12 @@ jobs:
           git commit -m "docs: README更新日志 v${{ needs.prebuild.outputs.new_version }}"
           git push origin main
 
-      - name: 创建 Draft Release
+      - name: 创建预发布 Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.prebuild.outputs.new_version }}
           name: 轻量浏览器 v${{ needs.prebuild.outputs.new_version }}
-          draft: true
+          prerelease: true
           body: |
             ## 轻量浏览器 v${{ needs.prebuild.outputs.new_version }}
 
@@ -269,7 +269,7 @@ jobs:
             ```
             对比上方 SHA256 值，一致则制品完整可信。
 
-            > ⚠️ 本 Release 为 Draft 草稿状态，需人工审核后点击发布。
+            > ⚠️ 本 Release 为自动构建预发布版，人工验证无误后可编辑取消「预发布」标记转为正式版。
           files: |
             ${{ env.APP_NAME }}-unsigned-v${{ needs.prebuild.outputs.new_version }}.ipa
             build-metadata.json
